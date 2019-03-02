@@ -259,6 +259,12 @@ func (p *cacheProfiler) Profile() (*CacheProfile, error) {
 		profileVal, err2 := profiler.Profile()
 		err = multierr.Append(err, err2)
 		if err2 == nil {
+			if cacheProfile.TimeEnabled == nil {
+				cacheProfile.TimeEnabled = &profileVal.TimeEnabled
+			}
+			if cacheProfile.TimeRunning == nil {
+				cacheProfile.TimeRunning = &profileVal.TimeRunning
+			}
 			switch {
 			// L1 data
 			case (profilerType ^ L1DataReadHit) == 0:
@@ -315,9 +321,6 @@ func (p *cacheProfiler) Profile() (*CacheProfile, error) {
 				cacheProfile.NodeWriteMiss = &profileVal.Value
 			}
 		}
-	}
-	if len(multierr.Errors(err)) > 0 {
-		println(err.Error())
 	}
 	if len(multierr.Errors(err)) == len(p.profilers) {
 		return nil, err

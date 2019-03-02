@@ -18,9 +18,6 @@ func NewSoftwareProfiler(pid, cpu int) SoftwareProfiler {
 	if err == nil {
 		profilers[unix.PERF_COUNT_SW_CPU_CLOCK] = cpuClockProfiler
 	}
-	if err != nil {
-		panic(err.Error())
-	}
 
 	taskClockProfiler, err := NewTaskClockProfiler(pid, cpu)
 	if err == nil {
@@ -112,6 +109,12 @@ func (p *softwareProfiler) Profile() (*SoftwareProfile, error) {
 		profileVal, err2 := profiler.Profile()
 		err = multierr.Append(err, err2)
 		if err2 == nil {
+			if swProfile.TimeEnabled == nil {
+				swProfile.TimeEnabled = &profileVal.TimeEnabled
+			}
+			if swProfile.TimeRunning == nil {
+				swProfile.TimeRunning = &profileVal.TimeRunning
+			}
 			switch profilerType {
 			case unix.PERF_COUNT_SW_CPU_CLOCK:
 				swProfile.CPUClock = &profileVal.Value
@@ -134,9 +137,6 @@ func (p *softwareProfiler) Profile() (*SoftwareProfile, error) {
 			default:
 			}
 		}
-	}
-	if len(multierr.Errors(err)) > 0 {
-		println(err.Error())
 	}
 	if len(multierr.Errors(err)) == len(p.profilers) {
 		return nil, err

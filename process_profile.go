@@ -33,16 +33,18 @@ type HardwareProfiler interface {
 
 // HardwareProfile is the current profile of a process.
 type HardwareProfile struct {
-	CPUCycles             *uint64 `json:"cpu_cycles"`
-	Instructions          *uint64 `json:"instructions"`
-	CacheRefs             *uint64 `json:"cache_refs"`
-	CacheMisses           *uint64 `json:"cache_misses"`
-	BranchInstr           *uint64 `json:"branch_instr"`
-	BranchMisses          *uint64 `json:"branch_misses"`
-	BusCycles             *uint64 `json:"bus_cycles"`
-	StalledCyclesFrontend *uint64 `json:"stalled_cycles_frontend"`
-	StalledCyclesBackend  *uint64 `json:"stalled_cycles_backend"`
-	RefCPUCycles          *uint64 `json:"ref_cpu_cycles"`
+	CPUCycles             *uint64 `json:"cpu_cycles,omitempty"`
+	Instructions          *uint64 `json:"instructions,omitempty"`
+	CacheRefs             *uint64 `json:"cache_refs,omitempty"`
+	CacheMisses           *uint64 `json:"cache_misses,omitempty"`
+	BranchInstr           *uint64 `json:"branch_instr,omitempty"`
+	BranchMisses          *uint64 `json:"branch_misses,omitempty"`
+	BusCycles             *uint64 `json:"bus_cycles,omitempty"`
+	StalledCyclesFrontend *uint64 `json:"stalled_cycles_frontend,omitempty"`
+	StalledCyclesBackend  *uint64 `json:"stalled_cycles_backend,omitempty"`
+	RefCPUCycles          *uint64 `json:"ref_cpu_cycles,omitempty"`
+	TimeEnabled           *uint64 `json:"time_enabled,omitempty"`
+	TimeRunning           *uint64 `json:"time_running,omitempty"`
 }
 
 // SoftwareProfiler is a software profiler.
@@ -56,15 +58,17 @@ type SoftwareProfiler interface {
 
 // SoftwareProfile  ...
 type SoftwareProfile struct {
-	CPUClock        *uint64 `json:"cpu_clock"`
-	TaskClock       *uint64 `json:"task_clock"`
-	PageFaults      *uint64 `json:"page_faults"`
-	ContextSwitches *uint64 `json:"context_switches"`
-	CPUMigrations   *uint64 `json:"cpu_migrations"`
-	MinorPageFaults *uint64 `json:"minor_page_faults"`
-	MajorPageFaults *uint64 `json:"major_page_faults"`
-	AlignmentFaults *uint64 `json:"alignment_faults"`
-	EmulationFaults *uint64 `json:"emulation_faults"`
+	CPUClock        *uint64 `json:"cpu_clock,omitempty"`
+	TaskClock       *uint64 `json:"task_clock,omitempty"`
+	PageFaults      *uint64 `json:"page_faults,omitempty"`
+	ContextSwitches *uint64 `json:"context_switches,omitempty"`
+	CPUMigrations   *uint64 `json:"cpu_migrations,omitempty"`
+	MinorPageFaults *uint64 `json:"minor_page_faults,omitempty"`
+	MajorPageFaults *uint64 `json:"major_page_faults,omitempty"`
+	AlignmentFaults *uint64 `json:"alignment_faults,omitempty"`
+	EmulationFaults *uint64 `json:"emulation_faults,omitempty"`
+	TimeEnabled     *uint64 `json:"time_enabled,omitempty"`
+	TimeRunning     *uint64 `json:"time_running,omitempty"`
 }
 
 // CacheProfiler is a cache profiler.
@@ -78,26 +82,28 @@ type CacheProfiler interface {
 
 // CacheProfile is used
 type CacheProfile struct {
-	L1DataReadHit      *uint64 `json:"l1_data_read_hit"`
-	L1DataReadMiss     *uint64 `json:"l1_data_read_miss"`
-	L1DataWriteHit     *uint64 `json:"l1_data_write_hit"`
-	L1InstrReadMiss    *uint64 `json:"l1_instr_read_miss"`
-	LastLevelReadHit   *uint64 `json:"last_level_read_hit"`
-	LastLevelReadMiss  *uint64 `json:"last_level_read_miss"`
-	LastLevelWriteHit  *uint64 `json:"last_level_write_hit"`
-	LastLevelWriteMiss *uint64 `json:"last_level_write_miss"`
-	DataTLBReadHit     *uint64 `json:"data_tlb_read_hit"`
-	DataTLBReadMiss    *uint64 `json:"data_tlb_read_miss"`
-	DataTLBWriteHit    *uint64 `json:"data_tlb_write_hit"`
-	DataTLBWriteMiss   *uint64 `json:"data_tlb_write_miss"`
-	InstrTLBReadHit    *uint64 `json:"instr_tlb_read_hit"`
-	InstrTLBReadMiss   *uint64 `json:"instr_tlb_read_miss"`
-	BPUReadHit         *uint64 `json:"bpu_read_hit"`
-	BPUReadMiss        *uint64 `json:"bpu_read_miss"`
-	NodeReadHit        *uint64 `json:"node_read_hit"`
-	NodeReadMiss       *uint64 `json:"node_read_miss"`
-	NodeWriteHit       *uint64 `json:"node_write_hit"`
-	NodeWriteMiss      *uint64 `json:"node_write_miss"`
+	L1DataReadHit      *uint64 `json:"l1_data_read_hit,omitempty"`
+	L1DataReadMiss     *uint64 `json:"l1_data_read_miss,omitempty"`
+	L1DataWriteHit     *uint64 `json:"l1_data_write_hit,omitempty"`
+	L1InstrReadMiss    *uint64 `json:"l1_instr_read_miss,omitempty"`
+	LastLevelReadHit   *uint64 `json:"last_level_read_hit,omitempty"`
+	LastLevelReadMiss  *uint64 `json:"last_level_read_miss,omitempty"`
+	LastLevelWriteHit  *uint64 `json:"last_level_write_hit,omitempty"`
+	LastLevelWriteMiss *uint64 `json:"last_level_write_miss,omitempty"`
+	DataTLBReadHit     *uint64 `json:"data_tlb_read_hit,omitempty"`
+	DataTLBReadMiss    *uint64 `json:"data_tlb_read_miss,omitempty"`
+	DataTLBWriteHit    *uint64 `json:"data_tlb_write_hit,omitempty"`
+	DataTLBWriteMiss   *uint64 `json:"data_tlb_write_miss,omitempty"`
+	InstrTLBReadHit    *uint64 `json:"instr_tlb_read_hit,omitempty"`
+	InstrTLBReadMiss   *uint64 `json:"instr_tlb_read_miss,omitempty"`
+	BPUReadHit         *uint64 `json:"bpu_read_hit,omitempty"`
+	BPUReadMiss        *uint64 `json:"bpu_read_miss,omitempty"`
+	NodeReadHit        *uint64 `json:"node_read_hit,omitempty"`
+	NodeReadMiss       *uint64 `json:"node_read_miss,omitempty"`
+	NodeWriteHit       *uint64 `json:"node_write_hit,omitempty"`
+	NodeWriteMiss      *uint64 `json:"node_write_miss,omitempty"`
+	TimeEnabled        *uint64 `json:"time_enabled,omitempty"`
+	TimeRunning        *uint64 `json:"time_running,omitempty"`
 }
 
 // ProfileValue ...

@@ -114,6 +114,12 @@ func (p *hardwareProfiler) Profile() (*HardwareProfile, error) {
 		profileVal, err2 := profiler.Profile()
 		err = multierr.Append(err, err2)
 		if err2 == nil {
+			if hwProfile.TimeEnabled == nil {
+				hwProfile.TimeEnabled = &profileVal.TimeEnabled
+			}
+			if hwProfile.TimeRunning == nil {
+				hwProfile.TimeRunning = &profileVal.TimeRunning
+			}
 			switch profilerType {
 			case unix.PERF_COUNT_HW_CPU_CYCLES:
 				hwProfile.CPUCycles = &profileVal.Value
@@ -137,9 +143,6 @@ func (p *hardwareProfiler) Profile() (*HardwareProfile, error) {
 				hwProfile.RefCPUCycles = &profileVal.Value
 			}
 		}
-	}
-	if len(multierr.Errors(err)) > 0 {
-		println(err.Error())
 	}
 	if len(multierr.Errors(err)) == len(p.profilers) {
 		return nil, err
