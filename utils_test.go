@@ -1,7 +1,6 @@
 package perf
 
 import (
-	"runtime"
 	"testing"
 )
 
@@ -12,24 +11,6 @@ func TestCPUInstructions(t *testing.T) {
 
 	if err != nil {
 		t.Fatal(err)
-	}
-}
-
-func BenchmarkCPUInstructions(b *testing.B) {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	perfCtx, err := NewContext(0)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for n := 0; n < b.N; n++ {
-		perfCtx.Instructions(
-			func() error { return nil },
-		)
 	}
 }
 
