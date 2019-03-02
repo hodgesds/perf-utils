@@ -1,4 +1,5 @@
 # Perf
+[![GoDoc](https://godoc.org/github.com/hodgesds/perf-utils?status.svg)](https://godoc.org/github.com/hodgesds/perf-utils)
 This package is a go library for interacting with the `perf` subsystem in
 Linux. It allows you to do things like see how many CPU instructions a function
 takes, profile a process for various hardware events, and other interesting
