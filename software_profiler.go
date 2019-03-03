@@ -11,50 +11,50 @@ type softwareProfiler struct {
 }
 
 // NewSoftwareProfiler returns a new software profiler.
-func NewSoftwareProfiler(pid, cpu int) SoftwareProfiler {
+func NewSoftwareProfiler(pid, cpu int, opts ...int) SoftwareProfiler {
 	profilers := map[int]Profiler{}
 
-	cpuClockProfiler, err := NewCPUClockProfiler(pid, cpu)
+	cpuClockProfiler, err := NewCPUClockProfiler(pid, cpu, opts...)
 	if err == nil {
 		profilers[unix.PERF_COUNT_SW_CPU_CLOCK] = cpuClockProfiler
 	}
 
-	taskClockProfiler, err := NewTaskClockProfiler(pid, cpu)
+	taskClockProfiler, err := NewTaskClockProfiler(pid, cpu, opts...)
 	if err == nil {
 		profilers[unix.PERF_COUNT_SW_TASK_CLOCK] = taskClockProfiler
 	}
 
-	pageFaultProfiler, err := NewPageFaultProfiler(pid, cpu)
+	pageFaultProfiler, err := NewPageFaultProfiler(pid, cpu, opts...)
 	if err == nil {
 		profilers[unix.PERF_COUNT_SW_PAGE_FAULTS] = pageFaultProfiler
 	}
 
-	ctxSwitchesProfiler, err := NewCtxSwitchesProfiler(pid, cpu)
+	ctxSwitchesProfiler, err := NewCtxSwitchesProfiler(pid, cpu, opts...)
 	if err == nil {
 		profilers[unix.PERF_COUNT_SW_CONTEXT_SWITCHES] = ctxSwitchesProfiler
 	}
 
-	cpuMigrationsProfiler, err := NewCPUMigrationsProfiler(pid, cpu)
+	cpuMigrationsProfiler, err := NewCPUMigrationsProfiler(pid, cpu, opts...)
 	if err == nil {
 		profilers[unix.PERF_COUNT_SW_CPU_MIGRATIONS] = cpuMigrationsProfiler
 	}
 
-	minorFaultProfiler, err := NewMinorFaultsProfiler(pid, cpu)
+	minorFaultProfiler, err := NewMinorFaultsProfiler(pid, cpu, opts...)
 	if err == nil {
 		profilers[unix.PERF_COUNT_SW_PAGE_FAULTS_MIN] = minorFaultProfiler
 	}
 
-	majorFaultProfiler, err := NewMajorFaultsProfiler(pid, cpu)
+	majorFaultProfiler, err := NewMajorFaultsProfiler(pid, cpu, opts...)
 	if err == nil {
 		profilers[unix.PERF_COUNT_SW_PAGE_FAULTS_MAJ] = majorFaultProfiler
 	}
 
-	alignFaultsFrontProfiler, err := NewAlignFaultsProfiler(pid, cpu)
+	alignFaultsFrontProfiler, err := NewAlignFaultsProfiler(pid, cpu, opts...)
 	if err == nil {
 		profilers[unix.PERF_COUNT_SW_ALIGNMENT_FAULTS] = alignFaultsFrontProfiler
 	}
 
-	emuFaultProfiler, err := NewEmulationFaultsProfiler(pid, cpu)
+	emuFaultProfiler, err := NewEmulationFaultsProfiler(pid, cpu, opts...)
 	if err == nil {
 		profilers[unix.PERF_COUNT_SW_EMULATION_FAULTS] = emuFaultProfiler
 	}

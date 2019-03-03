@@ -59,27 +59,27 @@ type cacheProfiler struct {
 }
 
 // NewCacheProfiler returns a new cache profiler.
-func NewCacheProfiler(pid, cpu int) CacheProfiler {
+func NewCacheProfiler(pid, cpu int, opts ...int) CacheProfiler {
 	profilers := map[int]Profiler{}
 
 	// L1 data
 	op := unix.PERF_COUNT_HW_CACHE_OP_READ
 	result := unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
-	l1dataReadHit, err := NewL1DataProfiler(pid, cpu, op, result)
+	l1dataReadHit, err := NewL1DataProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[L1DataReadHit] = l1dataReadHit
 	}
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
-	l1dataReadMiss, err := NewL1DataProfiler(pid, cpu, op, result)
+	l1dataReadMiss, err := NewL1DataProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[L1DataReadMiss] = l1dataReadMiss
 	}
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_WRITE
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
-	l1dataWriteHit, err := NewL1DataProfiler(pid, cpu, op, result)
+	l1dataWriteHit, err := NewL1DataProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[L1DataWriteHit] = l1dataWriteHit
 	}
@@ -87,7 +87,7 @@ func NewCacheProfiler(pid, cpu int) CacheProfiler {
 	// L1 instruction
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
-	l1InstrReadMiss, err := NewL1InstrProfiler(pid, cpu, op, result)
+	l1InstrReadMiss, err := NewL1InstrProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[L1InstrReadMiss] = l1InstrReadMiss
 	}
@@ -95,28 +95,28 @@ func NewCacheProfiler(pid, cpu int) CacheProfiler {
 	// Last Level
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
-	llReadHit, err := NewLLCacheProfiler(pid, cpu, op, result)
+	llReadHit, err := NewLLCacheProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[LLReadHit] = llReadHit
 	}
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
-	llReadMiss, err := NewLLCacheProfiler(pid, cpu, op, result)
+	llReadMiss, err := NewLLCacheProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[LLReadMiss] = llReadMiss
 	}
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_WRITE
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
-	llWriteHit, err := NewLLCacheProfiler(pid, cpu, op, result)
+	llWriteHit, err := NewLLCacheProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[LLWriteHit] = llWriteHit
 	}
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_WRITE
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
-	llWriteMiss, err := NewLLCacheProfiler(pid, cpu, op, result)
+	llWriteMiss, err := NewLLCacheProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[LLWriteMiss] = llWriteMiss
 	}
@@ -124,28 +124,28 @@ func NewCacheProfiler(pid, cpu int) CacheProfiler {
 	// dTLB
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
-	dTLBReadHit, err := NewDataTLBProfiler(pid, cpu, op, result)
+	dTLBReadHit, err := NewDataTLBProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[DataTLBReadHit] = dTLBReadHit
 	}
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
-	dTLBReadMiss, err := NewDataTLBProfiler(pid, cpu, op, result)
+	dTLBReadMiss, err := NewDataTLBProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[DataTLBReadMiss] = dTLBReadMiss
 	}
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_WRITE
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
-	dTLBWriteHit, err := NewDataTLBProfiler(pid, cpu, op, result)
+	dTLBWriteHit, err := NewDataTLBProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[DataTLBWriteHit] = dTLBWriteHit
 	}
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_WRITE
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
-	dTLBWriteMiss, err := NewDataTLBProfiler(pid, cpu, op, result)
+	dTLBWriteMiss, err := NewDataTLBProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[DataTLBWriteMiss] = dTLBWriteMiss
 	}
@@ -153,14 +153,14 @@ func NewCacheProfiler(pid, cpu int) CacheProfiler {
 	// iTLB
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
-	iTLBReadHit, err := NewInstrTLBProfiler(pid, cpu, op, result)
+	iTLBReadHit, err := NewInstrTLBProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[InstrTLBReadHit] = iTLBReadHit
 	}
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
-	iTLBReadMiss, err := NewInstrTLBProfiler(pid, cpu, op, result)
+	iTLBReadMiss, err := NewInstrTLBProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[InstrTLBReadMiss] = iTLBReadMiss
 	}
@@ -168,14 +168,14 @@ func NewCacheProfiler(pid, cpu int) CacheProfiler {
 	// BPU
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
-	bpuReadHit, err := NewBPUProfiler(pid, cpu, op, result)
+	bpuReadHit, err := NewBPUProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[BPUReadHit] = bpuReadHit
 	}
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
-	bpuReadMiss, err := NewBPUProfiler(pid, cpu, op, result)
+	bpuReadMiss, err := NewBPUProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[BPUReadMiss] = bpuReadMiss
 	}
@@ -183,28 +183,28 @@ func NewCacheProfiler(pid, cpu int) CacheProfiler {
 	// Node
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
-	nodeReadHit, err := NewNodeCacheProfiler(pid, cpu, op, result)
+	nodeReadHit, err := NewNodeCacheProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[NodeCacheReadHit] = nodeReadHit
 	}
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
-	nodeReadMiss, err := NewNodeCacheProfiler(pid, cpu, op, result)
+	nodeReadMiss, err := NewNodeCacheProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[NodeCacheReadMiss] = nodeReadMiss
 	}
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_WRITE
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
-	nodeWriteHit, err := NewNodeCacheProfiler(pid, cpu, op, result)
+	nodeWriteHit, err := NewNodeCacheProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[NodeCacheWriteHit] = nodeWriteHit
 	}
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_WRITE
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
-	nodeWriteMiss, err := NewNodeCacheProfiler(pid, cpu, op, result)
+	nodeWriteMiss, err := NewNodeCacheProfiler(pid, cpu, op, result, opts...)
 	if err == nil {
 		profilers[NodeCacheWriteMiss] = nodeWriteMiss
 	}
