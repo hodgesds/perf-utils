@@ -23,6 +23,9 @@ const (
 
 	// SyscallsDir ...
 	SyscallsDir = "/sys/kernel/debug/tracing/events/syscalls/"
+
+	// TracingDir ...
+	TracingDir = "/sys/kernel/debug/tracing"
 )
 
 var (
@@ -73,4 +76,23 @@ func GetFSMount(mountType string) ([]string, error) {
 	}
 
 	return mounts, file.Close()
+}
+
+// fileToStrings is a helper method that reads a line line by line and returns
+// a slice of strings.
+func fileToStrings(path string) ([]string, error) {
+	res := []string{}
+	f, err := os.Open(path)
+	if err != nil {
+		return res, err
+	}
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		res = append(res, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		return res, err
+	}
+
+	return res, nil
 }
