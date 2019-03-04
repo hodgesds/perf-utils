@@ -285,3 +285,121 @@ func EmulationFaults(f func() error) (*ProfileValue, error) {
 	}
 	return profileFn(eventAttr, f)
 }
+
+// L1Data is used to profile a function and the L1 data cache faults. Use
+// PERF_COUNT_HW_CACHE_OP_READ, PERF_COUNT_HW_CACHE_OP_WRITE, or
+// PERF_COUNT_HW_CACHE_OP_PREFETCH for the opt and
+// PERF_COUNT_HW_CACHE_RESULT_ACCESS or PERF_COUNT_HW_CACHE_RESULT_MISS for the
+// result. Note that it will call runtime.LockOSThread to ensure accurate
+// profilng.
+func L1Data(op, result int, f func() error) (*ProfileValue, error) {
+	eventAttr := &unix.PerfEventAttr{
+		Type:        unix.PERF_TYPE_HW_CACHE,
+		Config:      uint64((unix.PERF_COUNT_HW_CACHE_L1D) | (op << 8) | (result << 16)),
+		Size:        EventAttrSize,
+		Bits:        unix.PerfBitDisabled | unix.PerfBitExcludeKernel | unix.PerfBitExcludeHv,
+		Read_format: unix.PERF_FORMAT_TOTAL_TIME_RUNNING | unix.PERF_FORMAT_TOTAL_TIME_ENABLED,
+	}
+	return profileFn(eventAttr, f)
+}
+
+// L1Instructions is used to profile a function for the instruction level L1
+// cache. Use PERF_COUNT_HW_CACHE_OP_READ, PERF_COUNT_HW_CACHE_OP_WRITE, or
+// PERF_COUNT_HW_CACHE_OP_PREFETCH for the opt and
+// PERF_COUNT_HW_CACHE_RESULT_ACCESS or PERF_COUNT_HW_CACHE_RESULT_MISS for the
+// result. Note that it will call runtime.LockOSThread to ensure accurate
+// profilng.
+func L1Instructions(op, result int, f func() error) (*ProfileValue, error) {
+	eventAttr := &unix.PerfEventAttr{
+		Type:        unix.PERF_TYPE_HW_CACHE,
+		Config:      uint64((unix.PERF_COUNT_HW_CACHE_L1I) | (op << 8) | (result << 16)),
+		Size:        EventAttrSize,
+		Bits:        unix.PerfBitDisabled | unix.PerfBitExcludeKernel | unix.PerfBitExcludeHv,
+		Read_format: unix.PERF_FORMAT_TOTAL_TIME_RUNNING | unix.PERF_FORMAT_TOTAL_TIME_ENABLED,
+	}
+	return profileFn(eventAttr, f)
+}
+
+// LLCache is used to profile a function and return the number of emulation
+// PERF_COUNT_HW_CACHE_OP_READ, PERF_COUNT_HW_CACHE_OP_WRITE, or
+// PERF_COUNT_HW_CACHE_OP_PREFETCH for the opt and
+// PERF_COUNT_HW_CACHE_RESULT_ACCESS or PERF_COUNT_HW_CACHE_RESULT_MISS for the
+// result. Note that it will call runtime.LockOSThread to ensure accurate
+// profilng.
+func LLCache(op, result int, f func() error) (*ProfileValue, error) {
+	eventAttr := &unix.PerfEventAttr{
+		Type:        unix.PERF_TYPE_HW_CACHE,
+		Config:      uint64((unix.PERF_COUNT_HW_CACHE_LL) | (op << 8) | (result << 16)),
+		Size:        EventAttrSize,
+		Bits:        unix.PerfBitDisabled | unix.PerfBitExcludeKernel | unix.PerfBitExcludeHv,
+		Read_format: unix.PERF_FORMAT_TOTAL_TIME_RUNNING | unix.PERF_FORMAT_TOTAL_TIME_ENABLED,
+	}
+	return profileFn(eventAttr, f)
+}
+
+// DataTLB is used to profile the data TLB. Use PERF_COUNT_HW_CACHE_OP_READ,
+// PERF_COUNT_HW_CACHE_OP_WRITE, or PERF_COUNT_HW_CACHE_OP_PREFETCH for the opt
+// and PERF_COUNT_HW_CACHE_RESULT_ACCESS or PERF_COUNT_HW_CACHE_RESULT_MISS for
+// the result. Note that it will call runtime.LockOSThread to ensure accurate
+// profilng.
+func DataTLB(op, result int, f func() error) (*ProfileValue, error) {
+	eventAttr := &unix.PerfEventAttr{
+		Type:        unix.PERF_TYPE_HW_CACHE,
+		Config:      uint64((unix.PERF_COUNT_HW_CACHE_DTLB) | (op << 8) | (result << 16)),
+		Size:        EventAttrSize,
+		Bits:        unix.PerfBitDisabled | unix.PerfBitExcludeKernel | unix.PerfBitExcludeHv,
+		Read_format: unix.PERF_FORMAT_TOTAL_TIME_RUNNING | unix.PERF_FORMAT_TOTAL_TIME_ENABLED,
+	}
+	return profileFn(eventAttr, f)
+}
+
+// InstructionTLB is used to profile the instruction TLB. Use
+// PERF_COUNT_HW_CACHE_OP_READ, PERF_COUNT_HW_CACHE_OP_WRITE, or
+// PERF_COUNT_HW_CACHE_OP_PREFETCH for the opt and
+// PERF_COUNT_HW_CACHE_RESULT_ACCESS or PERF_COUNT_HW_CACHE_RESULT_MISS for the
+// result. Note that it will call runtime.LockOSThread to ensure accurate
+// profilng.
+func InstructionTLB(op, result int, f func() error) (*ProfileValue, error) {
+	eventAttr := &unix.PerfEventAttr{
+		Type:        unix.PERF_TYPE_HW_CACHE,
+		Config:      uint64((unix.PERF_COUNT_HW_CACHE_ITLB) | (op << 8) | (result << 16)),
+		Size:        EventAttrSize,
+		Bits:        unix.PerfBitDisabled | unix.PerfBitExcludeKernel | unix.PerfBitExcludeHv,
+		Read_format: unix.PERF_FORMAT_TOTAL_TIME_RUNNING | unix.PERF_FORMAT_TOTAL_TIME_ENABLED,
+	}
+	return profileFn(eventAttr, f)
+}
+
+// BPU is used to profile a function for the Branch Predictor Unit.
+// Use PERF_COUNT_HW_CACHE_OP_READ, PERF_COUNT_HW_CACHE_OP_WRITE, or
+// PERF_COUNT_HW_CACHE_OP_PREFETCH for the opt and
+// PERF_COUNT_HW_CACHE_RESULT_ACCESS or PERF_COUNT_HW_CACHE_RESULT_MISS for the
+// result. Note that it will call runtime.LockOSThread to ensure accurate
+// profilng.
+func BPU(op, result int, f func() error) (*ProfileValue, error) {
+	eventAttr := &unix.PerfEventAttr{
+		Type:        unix.PERF_TYPE_HW_CACHE,
+		Config:      uint64((unix.PERF_COUNT_HW_CACHE_BPU) | (op << 8) | (result << 16)),
+		Size:        EventAttrSize,
+		Bits:        unix.PerfBitDisabled | unix.PerfBitExcludeKernel | unix.PerfBitExcludeHv,
+		Read_format: unix.PERF_FORMAT_TOTAL_TIME_RUNNING | unix.PERF_FORMAT_TOTAL_TIME_ENABLED,
+	}
+	return profileFn(eventAttr, f)
+}
+
+// NodeCache is used to profile a function for NUMA operations. Use Use
+// PERF_COUNT_HW_CACHE_OP_READ, PERF_COUNT_HW_CACHE_OP_WRITE, or
+// PERF_COUNT_HW_CACHE_OP_PREFETCH for the opt and
+// PERF_COUNT_HW_CACHE_RESULT_ACCESS or PERF_COUNT_HW_CACHE_RESULT_MISS for the
+// result. Note that it will call runtime.LockOSThread to ensure accurate
+// profilng.
+func NodeCache(op, result int, f func() error) (*ProfileValue, error) {
+	eventAttr := &unix.PerfEventAttr{
+		Type:        unix.PERF_TYPE_HW_CACHE,
+		Config:      uint64((unix.PERF_COUNT_HW_CACHE_NODE) | (op << 8) | (result << 16)),
+		Size:        EventAttrSize,
+		Bits:        unix.PerfBitDisabled | unix.PerfBitExcludeKernel | unix.PerfBitExcludeHv,
+		Read_format: unix.PERF_FORMAT_TOTAL_TIME_RUNNING | unix.PERF_FORMAT_TOTAL_TIME_ENABLED,
+	}
+	return profileFn(eventAttr, f)
+}
