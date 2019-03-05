@@ -14,14 +14,6 @@ const (
 	PERF_TYPE_TRACEPOINT = 2
 )
 
-// TracepointEvent is a event that is defined in the kernel.
-type TracepointEvent struct {
-	Type   string
-	Name   string
-	Path   string
-	Config uint64
-}
-
 // AvailableEvents returns the list of available events.
 func AvailableEvents() (map[string][]string, error) {
 	events := map[string][]string{}
