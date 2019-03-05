@@ -62,7 +62,7 @@ func getTracepointConfig(kind, event string) (uint64, error) {
 // be listed with `perf list` for Tracepoint Events or in the
 // /sys/kernel/debug/tracing/events directory with the kind being the directory
 // and the event being the subdirectory.
-func ProfileTracepoint(kind, event string, pid, cpu int, opts ...int) (Profiler, error) {
+func ProfileTracepoint(kind, event string, pid, cpu int, opts ...int) (BPFProfiler, error) {
 	config, err := getTracepointConfig(kind, event)
 	if err != nil {
 		return nil, err
