@@ -39,10 +39,10 @@ Most likely you will need to tweak some system settings unless you are running a
                   0   allow access to CPU-specific data but not raw tracepoint samples.
                   -1  no restrictions.
 
-                  The existence of the perf_event_paranoid file is the official method for determining if a kernel supports perf_event_open().                                                                                                
+                  The existence of the perf_event_paranoid file is the official method for determining if a kernel supports perf_event_open().
 
            /proc/sys/kernel/perf_event_max_sample_rate
-                  This sets the maximum sample rate.  Setting this too high can allow users to sample at a rate that impacts overall machine performance and potentially lock up the machine.  The default value is 100000  (samples  per     
+                  This sets the maximum sample rate.  Setting this too high can allow users to sample at a rate that impacts overall machine performance and potentially lock up the machine.  The default value is 100000  (samples  per
                   second).
 
            /proc/sys/kernel/perf_event_max_stack
@@ -81,6 +81,37 @@ func main() {
 	fmt.Printf("CPU instructions: %+v\n", profileValue)
 }
 ```
+
+# Benchmarks
+To profile a single function call there is an overhead of ~0.4ms.
+
+```
+$ go test  -bench=BenchmarkCPUCycles .
+goos: linux
+goarch: amd64
+pkg: github.com/hodgesds/perf-utils
+BenchmarkCPUCycles-8        3000            397924 ns/op              32 B/op          1 allocs/op
+PASS
+ok      github.com/hodgesds/perf-utils  1.255s
+```
+
+The `Profiler` interface has low overhead and suitable for many use cases:
+
+```
+$ go test  -bench=BenchmarkProfiler .
+goos: linux
+goarch: amd64
+pkg: github.com/hodgesds/perf-utils
+BenchmarkProfiler-8      3000000               488 ns/op              32 B/op          1 allocs/op
+PASS
+ok      github.com/hodgesds/perf-utils  1.981s
+```
+
+# BPF Support
+BPF is supported by using the `BPFProfiler` which is available via the
+`ProfileTracepoint` function. To use BPF you need to create the BPF program and
+then call `AttachBPF` with the file descriptor of the BPF program. This is not
+well tested so use at your own peril.
 
 # Misc
 Originally I set out to use `go generate` to build Go structs that were

@@ -36,3 +36,32 @@ func TestProfiler(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func BenchmarkProfiler(b *testing.B) {
+	profiler, err := NewProfiler(
+		unix.PERF_TYPE_HARDWARE,
+		unix.PERF_COUNT_HW_INSTRUCTIONS,
+		os.Getpid(),
+		-1,
+	)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer func() {
+		if err := profiler.Close(); err != nil {
+			b.Fatal(err)
+		}
+	}()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	if err := profiler.Start(); err != nil {
+		b.Fatal(err)
+	}
+	for n := 0; n < b.N; n++ {
+		if _, err := profiler.Profile(); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
