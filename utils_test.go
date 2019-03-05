@@ -1,6 +1,7 @@
 package perf
 
 import (
+	"runtime"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -270,5 +271,15 @@ func BenchmarkCPUCycles(b *testing.B) {
 		CPUCycles(
 			func() error { return nil },
 		)
+	}
+}
+
+func BenchmarkThreadLocking(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for n := 0; n < b.N; n++ {
+		runtime.LockOSThread()
+		runtime.UnlockOSThread()
 	}
 }
