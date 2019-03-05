@@ -48,7 +48,7 @@ func profileFn(eventAttr *unix.PerfEventAttr, f func() error) (*ProfileValue, er
 		Value:       binary.LittleEndian.Uint64(buf[0:8]),
 		TimeEnabled: binary.LittleEndian.Uint64(buf[8:16]),
 		TimeRunning: binary.LittleEndian.Uint64(buf[16:24]),
-	}, nil
+	}, unix.Close(fd)
 }
 
 // CPUInstructions is used to profile a function and return the number of CPU instructions.
