@@ -31,7 +31,8 @@ type HardwareProfiler interface {
 	Profile() (*HardwareProfile, error)
 }
 
-// HardwareProfile is the current profile of a process.
+// HardwareProfile is returned by a HardwareProfiler. Depending on kernel
+// configuration some fields may return nil.
 type HardwareProfile struct {
 	CPUCycles             *uint64 `json:"cpu_cycles,omitempty"`
 	Instructions          *uint64 `json:"instructions,omitempty"`
@@ -56,7 +57,7 @@ type SoftwareProfiler interface {
 	Profile() (*SoftwareProfile, error)
 }
 
-// SoftwareProfile  ...
+// SoftwareProfile is returned by a SoftwareProfiler.
 type SoftwareProfile struct {
 	CPUClock        *uint64 `json:"cpu_clock,omitempty"`
 	TaskClock       *uint64 `json:"task_clock,omitempty"`
@@ -80,7 +81,7 @@ type CacheProfiler interface {
 	Profile() (*CacheProfile, error)
 }
 
-// CacheProfile is used
+// CacheProfile is returned by a CacheProfiler.
 type CacheProfile struct {
 	L1DataReadHit      *uint64 `json:"l1_data_read_hit,omitempty"`
 	L1DataReadMiss     *uint64 `json:"l1_data_read_miss,omitempty"`
@@ -106,7 +107,7 @@ type CacheProfile struct {
 	TimeRunning        *uint64 `json:"time_running,omitempty"`
 }
 
-// ProfileValue ...
+// ProfileValue is a value returned by a profiler.
 type ProfileValue struct {
 	Value       uint64
 	TimeEnabled uint64
@@ -192,7 +193,7 @@ func NewCacheMissesProfiler(pid, cpu int, opts ...int) (Profiler, error) {
 	)
 }
 
-// NewBranchInstrProfiler returns a Profiler that profiles branch instructions
+// NewBranchInstrProfiler returns a Profiler that profiles branch instructions.
 func NewBranchInstrProfiler(pid, cpu int, opts ...int) (Profiler, error) {
 	return NewProfiler(
 		unix.PERF_TYPE_HARDWARE,

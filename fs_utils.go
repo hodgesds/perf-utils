@@ -10,21 +10,23 @@ import (
 const (
 	// DebugFS is the filesystem type for debugfs.
 	DebugFS = "debugfs"
+
 	// TraceFS is the filesystem type for tracefs.
 	TraceFS = "tracefs"
+
 	// ProcMounts is the mount point for file systems in procfs.
 	ProcMounts = "/proc/mounts"
 
-	// PerfMaxStack is the mount point
+	// PerfMaxStack is the mount point for the max perf event size.
 	PerfMaxStack = "/proc/sys/kernel/perf_event_max_stack"
 
-	// PerfMaxContexts ...
+	// PerfMaxContexts is a sysfs mount that contains the max perf contexts.
 	PerfMaxContexts = "/proc/sys/kernel/perf_event_max_contexts_per_stack"
 
-	// SyscallsDir ...
+	// SyscallsDir is a constant of the default tracing event syscalls directory.
 	SyscallsDir = "/sys/kernel/debug/tracing/events/syscalls/"
 
-	// TracingDir ...
+	// TracingDir is a constant of the default tracing directory.
 	TracingDir = "/sys/kernel/debug/tracing"
 )
 
