@@ -11,6 +11,9 @@ import (
 const (
 	// PERF_SAMPLE_IDENTIFIER is not defined in x/sys/unix.
 	PERF_SAMPLE_IDENTIFIER = 1 << 16
+
+	// PERF_IOC_FLAG_GROUP is not defined in x/sys/unix.
+	PERF_IOC_FLAG_GROUP = 1 << 0
 )
 
 // Profiler is a profiler.
@@ -125,7 +128,7 @@ func NewProfiler(profilerType uint32, config uint64, pid, cpu int, opts ...int) 
 		Type:        profilerType,
 		Config:      config,
 		Size:        uint32(unsafe.Sizeof(unix.PerfEventAttr{})),
-		Bits:        unix.PerfBitDisabled | unix.PerfBitExcludeHv,
+		Bits:        unix.PerfBitDisabled | unix.PerfBitExcludeHv | unix.PerfBitInherit,
 		Read_format: unix.PERF_FORMAT_TOTAL_TIME_RUNNING | unix.PERF_FORMAT_TOTAL_TIME_ENABLED,
 		Sample_type: PERF_SAMPLE_IDENTIFIER,
 	}
@@ -464,7 +467,20 @@ func (p *profiler) Stop() error {
 
 // Profile returns the current Profile.
 func (p *profiler) Profile() (*ProfileValue, error) {
-	buf := make([]byte, 24)
+	// The underlying struct that gets read from the profiler looks like:
+	/*
+		     struct read_format {
+			 u64 value;         // The value of the event
+			 u64 time_enabled;  // if PERF_FORMAT_TOTAL_TIME_ENABLED
+			 u64 time_running;  // if PERF_FORMAT_TOTAL_TIME_RUNNING
+			 u64 id;            // if PERF_FORMAT_ID
+		     };
+	*/
+
+	// read 24 bytes since PERF_FORMAT_TOTAL_TIME_ENABLED and
+	// PERF_FORMAT_TOTAL_TIME_RUNNING are always set.
+	// XXX: allow profile ids?
+	buf := make([]byte, 24, 24)
 	_, err := syscall.Read(p.fd, buf)
 	if err != nil {
 		return nil, err
