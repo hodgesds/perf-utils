@@ -20,8 +20,6 @@ accessible via Go directly.
   [`runtime.LockOSThread`](https://golang.org/pkg/runtime/#LockOSThread) for
   you, they will also unlock the thread after profiling. ***Note*** using these
   utility functions will incur significant overhead.
-* Perf profiling groups are not implemented properly, I need to spend more time
-  digging through the perf code.
 * Overflow handling is not implemented.
 
 # Setup
