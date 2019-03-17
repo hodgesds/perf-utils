@@ -41,7 +41,6 @@ func NewGroupProfiler(pid, cpu, opts int, eventAttrs ...unix.PerfEventAttr) (Gro
 	for i, eventAttr := range eventAttrs {
 		// common configs
 		eventAttr.Size = EventAttrSize
-		//eventAttr.Sample_type = unix.PERF_SAMPLE_READ
 		eventAttr.Sample_type = PERF_SAMPLE_IDENTIFIER
 
 		// Leader fd must be opened first
@@ -76,7 +75,13 @@ func NewGroupProfiler(pid, cpu, opts int, eventAttrs ...unix.PerfEventAttr) (Gro
 			opts,
 		)
 		if err != nil {
-			// TODO(hodgesds): clean up other fds
+			// cleanup any old Fds
+			for ii, fd2 := range fds {
+				if ii == i {
+					break
+				}
+				err = multierr.Append(err, unix.Close(fd2))
+			}
 			return nil, err
 		}
 		fds[i] = fd
