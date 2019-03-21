@@ -6,7 +6,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// BPFProfiler is a Profiler that  This allows attaching a Berkeley
+// BPFProfiler is a Profiler that allows attaching a Berkeley
 // Packet Filter (BPF) program to an existing kprobe tracepoint event.
 // You need CAP_SYS_ADMIN privileges to use this interface. See:
 // https://lwn.net/Articles/683504/
