@@ -68,6 +68,9 @@ func NewSoftwareProfiler(pid, cpu int, opts ...int) SoftwareProfiler {
 
 // Start is used to start the SoftwareProfiler.
 func (p *softwareProfiler) Start() error {
+	if len(p.profilers) == 0 {
+		return ErrNoProfiler
+	}
 	var err error
 	for _, profiler := range p.profilers {
 		err = multierr.Append(err, profiler.Start())

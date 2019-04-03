@@ -216,8 +216,12 @@ func NewCacheProfiler(pid, cpu int, opts ...int) CacheProfiler {
 	}
 }
 
-// Start is used to start the CacheProfiler.
+// Start is used to start the CacheProfiler, it will return an error if no
+// profilers are configured.
 func (p *cacheProfiler) Start() error {
+	if len(p.profilers) == 0 {
+		return ErrNoProfiler
+	}
 	var err error
 	for _, profiler := range p.profilers {
 		err = multierr.Append(err, profiler.Start())

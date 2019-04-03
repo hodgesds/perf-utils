@@ -73,6 +73,9 @@ func NewHardwareProfiler(pid, cpu int, opts ...int) HardwareProfiler {
 
 // Start is used to start the HardwareProfiler.
 func (p *hardwareProfiler) Start() error {
+	if len(p.profilers) == 0 {
+		return ErrNoProfiler
+	}
 	var err error
 	for _, profiler := range p.profilers {
 		err = multierr.Append(err, profiler.Start())

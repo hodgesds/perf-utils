@@ -4,6 +4,7 @@ package perf
 
 import (
 	"encoding/binary"
+	"fmt"
 	"syscall"
 	"unsafe"
 
@@ -16,6 +17,11 @@ const (
 
 	// PERF_IOC_FLAG_GROUP is not defined in x/sys/unix.
 	PERF_IOC_FLAG_GROUP = 1 << 0
+)
+
+var (
+	// ErrNoProfiler is returned when no profiler is available for profiling.
+	ErrNoProfiler = fmt.Errorf("No profiler available")
 )
 
 // Profiler is a profiler.
