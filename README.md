@@ -4,16 +4,19 @@
 This package is a go library for interacting with the `perf` subsystem in
 Linux. It allows you to do things like see how many CPU instructions a function
 takes, profile a process for various hardware events, and other interesting
-things. The library is by no means finalized and should be considered pre-alpha
-at best.
+things. The library is by no means finalized and should be considered pre-alpha.
 
 # Use Cases
-A majority of the utility methods in this package should only be used for
-testing and/or debugging performance issues. Due to the nature of the go
-runtime profiling on the goroutine level is extremely tricky, with the
+If you are looking to interact with the perf subsystem directly with
+`perf_event_open` syscall than this library is most likely for you. A large
+number of the utility methods in this package should only be used for testing
+and/or debugging performance issues. This is due to the nature of the go
+runtime being extremely tricky to profile on the goroutine level, with the
 exception of a long running worker goroutine locked to an OS thread. Eventually
 this library could be used to implement many of the features of `perf` but in
-accessible via Go directly.
+pure Go. Currently this library is used in
+[perf_exporter](https://github.com/hodgesds/perf_exporter), which is a
+Prometheus exporter for perf related metrics.
 
 ## Caveats
 * Some utility functions will call
