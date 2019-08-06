@@ -2,9 +2,21 @@
 [![GoDoc](https://godoc.org/github.com/hodgesds/perf-utils?status.svg)](https://godoc.org/github.com/hodgesds/perf-utils)
 
 This package is a go library for interacting with the `perf` subsystem in
-Linux. It allows you to do things like see how many CPU instructions a function
-takes, profile a process for various hardware events, and other interesting
-things. The library is by no means finalized and should be considered pre-alpha.
+Linux. I had trouble finding a golang perf library so I decided to write this
+by using the linux's perf as a reference. This library allows you to do things
+like see how many CPU instructions a function takes (roughly), profile a
+process for various hardware events, and other interesting things. Note that
+because the go scheduler can schedule a goroutine across many OS threads it
+becomes rather difficult to get an _exact_ profile of an invididual goroutine.
+However, a few tricks can be used; first a call to
+`[runtime.LockOSThread](https://golang.org/pkg/runtime/#LockOSThread)` to lock
+the current goroutine to an OS thread. Second a call to
+`[unix.SchedSetaffinity](https://godoc.org/golang.org/x/sys/unix#SchedSetaffinity)`,
+with a CPU set mask set. Note that if the pid argument is set 0 the calling
+thread is used (the thread that was just locked). Before using this library you
+should probably read the
+[`perf_event_open`](http://www.man7.org/linux/man-pages/man2/perf_event_open.2.html)
+man page which this library uses heavily.
 
 # Use Cases
 If you are looking to interact with the perf subsystem directly with
@@ -15,6 +27,7 @@ runtime being extremely tricky to profile on the goroutine level, with the
 exception of a long running worker goroutine locked to an OS thread. Eventually
 this library could be used to implement many of the features of `perf` but in
 pure Go. Currently this library is used in
+[node_exporter](https://github.com/prometheus/node_exporter) as well as
 [perf_exporter](https://github.com/hodgesds/perf_exporter), which is a
 Prometheus exporter for perf related metrics.
 
@@ -22,11 +35,12 @@ Prometheus exporter for perf related metrics.
 * Some utility functions will call
   [`runtime.LockOSThread`](https://golang.org/pkg/runtime/#LockOSThread) for
   you, they will also unlock the thread after profiling. ***Note*** using these
-  utility functions will incur significant overhead.
+  utility functions will incur significant overhead (~4ms).
 * Overflow handling is not implemented.
 
 # Setup
-Most likely you will need to tweak some system settings unless you are running as root. From `man perf_event_open`:
+Most likely you will need to tweak some system settings unless you are running
+as root. From `man perf_event_open`:
 
 ```
    perf_event related configuration files
@@ -111,8 +125,7 @@ ok      github.com/hodgesds/perf-utils  1.981s
 # BPF Support
 BPF is supported by using the `BPFProfiler` which is available via the
 `ProfileTracepoint` function. To use BPF you need to create the BPF program and
-then call `AttachBPF` with the file descriptor of the BPF program. This is not
-well tested so use at your own peril.
+then call `AttachBPF` with the file descriptor of the BPF program.
 
 # Misc
 Originally I set out to use `go generate` to build Go structs that were
