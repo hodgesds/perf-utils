@@ -9,9 +9,9 @@ process for various hardware events, and other interesting things. Note that
 because the go scheduler can schedule a goroutine across many OS threads it
 becomes rather difficult to get an _exact_ profile of an invididual goroutine.
 However, a few tricks can be used; first a call to
-`[runtime.LockOSThread](https://golang.org/pkg/runtime/#LockOSThread)` to lock
+[`runtime.LockOSThread`](https://golang.org/pkg/runtime/#LockOSThread) to lock
 the current goroutine to an OS thread. Second a call to
-`[unix.SchedSetaffinity](https://godoc.org/golang.org/x/sys/unix#SchedSetaffinity)`,
+[`unix.SchedSetaffinity`](https://godoc.org/golang.org/x/sys/unix#SchedSetaffinity),
 with a CPU set mask set. Note that if the pid argument is set 0 the calling
 thread is used (the thread that was just locked). Before using this library you
 should probably read the
