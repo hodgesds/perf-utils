@@ -128,14 +128,66 @@ helper function can be used to run as function as a benchmark and report
 results from PerfEventAttrs:
 
 ```
-go test  -bench=.
+func BenchmarkRunBenchmarks(b *testing.B) {
+	instrEventAttr := CPUInstructionsEventAttr()
+	instrEventAttr.Bits |= unix.PerfBitDisabled
+	cyclesEventAttr := CPUCyclesEventAttr()
+	cyclesEventAttr.Bits |= unix.PerfBitDisabled
+
+	eventAttrs := []*unix.PerfEventAttr{
+		&instrEventAttr,
+		&cyclesEventAttr,
+	}
+	RunBenchmarks(
+		b,
+		func(b *testing.B) {
+			a := 42
+			for i := 0; i < 1000; i++ {
+				a += i
+			}
+		},
+		true,
+		eventAttrs...,
+	)
+}
+
+go test  -bench=BenchmarkRunBenchmarks
 goos: linux
 goarch: amd64
 pkg: github.com/hodgesds/iouring-go/go/src/github.com/hodgesds/perf-utils
-BenchmarkProfiler-8              2050809               588 ns/op              32 B/op          1 allocs/op
-BenchmarkCPUCycles-8               30423             39914 ns/op              32 B/op          1 allocs/op
-BenchmarkThreadLocking-8        254143965                4.69 ns/op            0 B/op          0 allocs/op
 BenchmarkRunBenchmarks-8         3119304               388 ns/op              1336 hardware_cpu_cycles/op             3314 hardware_instructions/op            0 B/op          0 allocs/op
+```
+
+If you want to run a benchmark tracepoints (ie `perf list` or `cat
+/sys/kernel/debug/tracing/available_events`) you can use the
+[`BenchmarkTracepoints`](https://godoc.org/github.com/hodgesds/perf-utils#BenchmarkTracepoints)
+helper:
+```
+func BenchmarkBenchmarkTracepoints(b *testing.B) {
+	tracepoints := []string{
+		"syscalls:sys_enter_getrusage",
+	}
+	BenchmarkTracepoints(
+		b,
+		func(b *testing.B) {
+			unix.Getrusage(0, &unix.Rusage{})
+		},
+		true,
+		tracepoints...,
+	)
+}
+
+go test -bench=.
+goos: linux
+goarch: amd64
+pkg: github.com/hodgesds/perf-utils
+BenchmarkProfiler-8                      2014984               584 ns/op              32 B/op          1 allocs/op
+BenchmarkCPUCycles-8                        2332            485937 ns/op              32 B/op          1 allocs/op
+BenchmarkThreadLocking-8                278850051                4.23 ns/op            0 B/op          0 allocs/op
+BenchmarkRunBenchmarks-8                 3104167               403 ns/op              1399 hardware_cpu_cycles/op             3314 hardware_instructions/op            0 B/op          0 allocs/op
+BenchmarkBenchmarkTracepoints-8          1346517               915 ns/op                 1.00 syscalls:sys_enter_getrusage/op          0 B/op          0 allocs/op
+PASS
+ok      github.com/hodgesds/perf-utils  138.575s
 ```
 
 # BPF Support

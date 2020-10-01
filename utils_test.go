@@ -306,3 +306,17 @@ func BenchmarkRunBenchmarks(b *testing.B) {
 		eventAttrs...,
 	)
 }
+
+func BenchmarkBenchmarkTracepoints(b *testing.B) {
+	tracepoints := []string{
+		"syscalls:sys_enter_getrusage",
+	}
+	BenchmarkTracepoints(
+		b,
+		func(b *testing.B) {
+			unix.Getrusage(0, &unix.Rusage{})
+		},
+		true,
+		tracepoints...,
+	)
+}
