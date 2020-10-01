@@ -6,7 +6,9 @@ import (
 	"encoding/binary"
 	"math/rand"
 	"runtime"
+	"strings"
 	"syscall"
+	"testing"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -24,6 +26,91 @@ func LockThread(core int) (func(), error) {
 	cpuSet := unix.CPUSet{}
 	cpuSet.Set(core)
 	return runtime.UnlockOSThread, unix.SchedSetaffinity(0, &cpuSet)
+}
+
+// RunBenchmarks runs a series of benchmarks for a set of PerfEventAttrs.
+func RunBenchmarks(
+	b *testing.B,
+	f func(b *testing.B),
+	strict bool,
+	eventAttrs ...*unix.PerfEventAttr,
+) {
+	cb, err := LockThread(rand.Intn(runtime.NumCPU()))
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer cb()
+
+	attrVals := map[string]float64{}
+	attrMap := map[string]int{}
+	for _, eventAttr := range eventAttrs {
+		fd, err := unix.PerfEventOpen(
+			eventAttr,
+			unix.Gettid(),
+			-1,
+			-1,
+			0,
+		)
+		if err != nil {
+			b.Fatal(err)
+		}
+		key := EventAttrString(eventAttr)
+		attrMap[key] = fd
+		attrVals[key] = 0.0
+	}
+
+	b.ReportAllocs()
+	b.StopTimer()
+	b.ResetTimer()
+	for n := 1; n < b.N; n++ {
+		b.StartTimer()
+		f(b)
+		b.StopTimer()
+		for key, fd := range attrMap {
+			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0); err != nil {
+				if strict {
+					b.Fatal(err)
+				}
+				b.Log(err)
+				continue
+			}
+			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0); err != nil {
+				if strict {
+					b.Fatal(err)
+				}
+				b.Log(err)
+				continue
+			}
+			f(b)
+			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, 0); err != nil {
+				if strict {
+					b.Fatal(err)
+				}
+				b.Log(err)
+				continue
+			}
+			buf := make([]byte, 24)
+			if _, err := syscall.Read(fd, buf); err != nil {
+				if strict {
+					b.Fatal(err)
+				}
+				b.Log(err)
+				continue
+			}
+			attrVals[key] += float64(binary.LittleEndian.Uint64(buf[0:8]))
+			b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
+		}
+
+	}
+
+	for _, fd := range attrMap {
+		if err := unix.Close(fd); err != nil {
+			if strict {
+				b.Fatal(err)
+			}
+			b.Log(err)
+		}
+	}
 }
 
 // profileFn is a helper function to profile a function, it will randomly choose a core to run on.
@@ -64,6 +151,94 @@ func profileFn(eventAttr *unix.PerfEventAttr, f func() error) (*ProfileValue, er
 		TimeEnabled: binary.LittleEndian.Uint64(buf[8:16]),
 		TimeRunning: binary.LittleEndian.Uint64(buf[16:24]),
 	}, unix.Close(fd)
+}
+
+// EventAttrString returns a short string representation of a unix.PerfEventAttr.
+func EventAttrString(eventAttr *unix.PerfEventAttr) string {
+	var b strings.Builder
+	switch eventAttr.Type {
+	case unix.PERF_TYPE_HARDWARE:
+		b.WriteString("hardware_")
+		switch eventAttr.Config {
+		case unix.PERF_COUNT_HW_INSTRUCTIONS:
+			b.WriteString("instructions")
+		case unix.PERF_COUNT_HW_CPU_CYCLES:
+			b.WriteString("cpu_cycles")
+		case unix.PERF_COUNT_HW_CACHE_REFERENCES:
+			b.WriteString("cache_ref")
+		case unix.PERF_COUNT_HW_CACHE_MISSES:
+			b.WriteString("cache_miss")
+		case unix.PERF_COUNT_HW_BUS_CYCLES:
+			b.WriteString("bus_cycles")
+		case unix.PERF_COUNT_HW_STALLED_CYCLES_FRONTEND:
+			b.WriteString("stalled_cycles_frontend")
+		case unix.PERF_COUNT_HW_STALLED_CYCLES_BACKEND:
+			b.WriteString("stalled_cycles_frontend")
+		case unix.PERF_COUNT_HW_REF_CPU_CYCLES:
+			b.WriteString("ref_cpu_cycles")
+		default:
+			b.WriteString("unknown")
+		}
+	case unix.PERF_TYPE_SOFTWARE:
+		b.WriteString("software_")
+		switch eventAttr.Config {
+		case unix.PERF_COUNT_SW_CPU_CLOCK:
+			b.WriteString("cpu_clock")
+		case unix.PERF_COUNT_SW_TASK_CLOCK:
+			b.WriteString("task_clock")
+		case unix.PERF_COUNT_SW_PAGE_FAULTS:
+			b.WriteString("page_faults")
+		case unix.PERF_COUNT_SW_CONTEXT_SWITCHES:
+			b.WriteString("context_switches")
+		case unix.PERF_COUNT_SW_CPU_MIGRATIONS:
+			b.WriteString("cpu_migrations")
+		case unix.PERF_COUNT_SW_PAGE_FAULTS_MIN:
+			b.WriteString("minor_page_faults")
+		case unix.PERF_COUNT_SW_PAGE_FAULTS_MAJ:
+			b.WriteString("major_page_faults")
+		case unix.PERF_COUNT_SW_ALIGNMENT_FAULTS:
+			b.WriteString("alignment_faults")
+		case unix.PERF_COUNT_SW_EMULATION_FAULTS:
+			b.WriteString("emulation_faults")
+		default:
+			b.WriteString("unknown")
+		}
+	case unix.PERF_TYPE_BREAKPOINT:
+		b.WriteString("breakpoint")
+	case unix.PERF_TYPE_TRACEPOINT:
+		b.WriteString("tracepoint")
+	case unix.PERF_TYPE_HW_CACHE:
+		b.WriteString("hw_cache_")
+		switch eventAttr.Config {
+		case (unix.PERF_COUNT_HW_CACHE_L1D) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
+			b.WriteString("l1d_read")
+		case (unix.PERF_COUNT_HW_CACHE_L1D) | (unix.PERF_COUNT_HW_CACHE_OP_WRITE << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
+			b.WriteString("l1d_write")
+		case (unix.PERF_COUNT_HW_CACHE_LL) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
+			b.WriteString("ll_read")
+		case (unix.PERF_COUNT_HW_CACHE_LL) | (unix.PERF_COUNT_HW_CACHE_OP_WRITE << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
+			b.WriteString("ll_write")
+		case (unix.PERF_COUNT_HW_CACHE_DTLB) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
+			b.WriteString("dtlb_read")
+		case (unix.PERF_COUNT_HW_CACHE_DTLB) | (unix.PERF_COUNT_HW_CACHE_OP_WRITE << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
+			b.WriteString("dtlb_write")
+		case (unix.PERF_COUNT_HW_CACHE_ITLB) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
+			b.WriteString("itlb_read")
+		case (unix.PERF_COUNT_HW_CACHE_BPU) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
+			b.WriteString("bpu_read")
+		case (unix.PERF_COUNT_HW_CACHE_NODE) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
+			b.WriteString("node_cache_read")
+		case (unix.PERF_COUNT_HW_CACHE_NODE) | (unix.PERF_COUNT_HW_CACHE_OP_WRITE << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
+			b.WriteString("node_cache_write")
+		default:
+			b.WriteString("unknown")
+		}
+	case unix.PERF_TYPE_RAW:
+		b.WriteString("raw")
+	default:
+		b.WriteString("unknown")
+	}
+	return b.String()
 }
 
 // CPUInstructions is used to profile a function and return the number of CPU instructions.

@@ -283,3 +283,26 @@ func BenchmarkThreadLocking(b *testing.B) {
 		runtime.UnlockOSThread()
 	}
 }
+
+func BenchmarkRunBenchmarks(b *testing.B) {
+	instrEventAttr := CPUInstructionsEventAttr()
+	instrEventAttr.Bits |= unix.PerfBitDisabled
+	cyclesEventAttr := CPUCyclesEventAttr()
+	cyclesEventAttr.Bits |= unix.PerfBitDisabled
+
+	eventAttrs := []*unix.PerfEventAttr{
+		&instrEventAttr,
+		&cyclesEventAttr,
+	}
+	RunBenchmarks(
+		b,
+		func(b *testing.B) {
+			a := 42
+			for i := 0; i < 1000; i++ {
+				a += i
+			}
+		},
+		true,
+		eventAttrs...,
+	)
+}
