@@ -122,6 +122,22 @@ PASS
 ok      github.com/hodgesds/perf-utils  1.981s
 ```
 
+The
+[`RunBenchmarks`](https://godoc.org/github.com/hodgesds/perf-utils#RunBenchmarks)
+helper function can be used to run as function as a benchmark and report
+results from PerfEventAttrs:
+
+```
+go test  -bench=.
+goos: linux
+goarch: amd64
+pkg: github.com/hodgesds/iouring-go/go/src/github.com/hodgesds/perf-utils
+BenchmarkProfiler-8              2050809               588 ns/op              32 B/op          1 allocs/op
+BenchmarkCPUCycles-8               30423             39914 ns/op              32 B/op          1 allocs/op
+BenchmarkThreadLocking-8        254143965                4.69 ns/op            0 B/op          0 allocs/op
+BenchmarkRunBenchmarks-8         3119304               388 ns/op              1336 hardware_cpu_cycles/op             3314 hardware_instructions/op            0 B/op          0 allocs/op
+```
+
 # BPF Support
 BPF is supported by using the `BPFProfiler` which is available via the
 `ProfileTracepoint` function. To use BPF you need to create the BPF program and
