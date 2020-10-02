@@ -316,7 +316,9 @@ func BenchmarkBenchmarkTracepoints(b *testing.B) {
 	BenchmarkTracepoints(
 		b,
 		func(b *testing.B) {
-			unix.Getrusage(0, &unix.Rusage{})
+			for i := 0; i < b.N; i++ {
+				unix.Getrusage(0, &unix.Rusage{})
+			}
 		},
 		true,
 		tracepoints...,

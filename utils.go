@@ -28,7 +28,7 @@ func LockThread(core int) (func(), error) {
 	return runtime.UnlockOSThread, unix.SchedSetaffinity(0, &cpuSet)
 }
 
-// BenchmarkTracepoints runs benchmark and counts the
+// BenchmarkTracepoints runs benchmark and counts the tracepoints.
 func BenchmarkTracepoints(
 	b *testing.B,
 	f func(b *testing.B),
@@ -57,63 +57,49 @@ func BenchmarkTracepoints(
 			0,
 		)
 		if err != nil {
-			b.Fatal(err)
+			failBenchmark(strict, b, tracepoint, err)
+			continue
 		}
 		attrMap[tracepoint] = fd
 		attrVals[tracepoint] = 0.0
 	}
 
-	b.ReportAllocs()
-	b.StopTimer()
+	b.StartTimer()
 	b.ResetTimer()
-	for n := 1; n < b.N; n++ {
-		b.StartTimer()
-		f(b)
-		b.StopTimer()
-		for key, fd := range attrMap {
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			f(b)
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, 0); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			buf := make([]byte, 24)
-			if _, err := syscall.Read(fd, buf); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			attrVals[key] += float64(binary.LittleEndian.Uint64(buf[0:8]))
-			b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
+	f(b)
+	b.StopTimer()
+
+	for key, fd := range attrMap {
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0); err != nil {
+			failBenchmark(strict, b, "PERF_EVENT_IOC_RESET", err)
+			continue
 		}
 
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0); err != nil {
+			failBenchmark(strict, b, "PERF_EVENT_IOC_ENABLE", err)
+			continue
+		}
+
+		f(b)
+
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, 0); err != nil {
+			failBenchmark(strict, b, "PERF_EVENT_IOC_DISABLE", err)
+			continue
+		}
+
+		buf := make([]byte, 24)
+		if _, err := syscall.Read(fd, buf); err != nil {
+			failBenchmark(strict, b, "syscall.Read", err)
+			continue
+		}
+
+		attrVals[key] += float64(binary.LittleEndian.Uint64(buf[0:8]))
+		b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
 	}
 
 	for _, fd := range attrMap {
-		if err := unix.Close(fd); err != nil {
-			if strict {
-				b.Fatal(err)
-			}
-			b.Log(err)
-		}
+		// errors on close are harmless
+		_ = unix.Close(fd)
 	}
 }
 
