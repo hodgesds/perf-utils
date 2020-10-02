@@ -248,12 +248,12 @@ func EventAttrString(eventAttr *unix.PerfEventAttr) string {
 	var b strings.Builder
 	switch eventAttr.Type {
 	case unix.PERF_TYPE_HARDWARE:
-		b.WriteString("hardware_")
+		b.WriteString("hw_")
 		switch eventAttr.Config {
 		case unix.PERF_COUNT_HW_INSTRUCTIONS:
-			b.WriteString("instructions")
+			b.WriteString("insns")
 		case unix.PERF_COUNT_HW_CPU_CYCLES:
-			b.WriteString("cpu_cycles")
+			b.WriteString("cycles")
 		case unix.PERF_COUNT_HW_CACHE_REFERENCES:
 			b.WriteString("cache_ref")
 		case unix.PERF_COUNT_HW_CACHE_MISSES:
@@ -263,14 +263,14 @@ func EventAttrString(eventAttr *unix.PerfEventAttr) string {
 		case unix.PERF_COUNT_HW_STALLED_CYCLES_FRONTEND:
 			b.WriteString("stalled_cycles_frontend")
 		case unix.PERF_COUNT_HW_STALLED_CYCLES_BACKEND:
-			b.WriteString("stalled_cycles_frontend")
+			b.WriteString("stalled_cycles_backend")
 		case unix.PERF_COUNT_HW_REF_CPU_CYCLES:
-			b.WriteString("ref_cpu_cycles")
+			b.WriteString("ref_cycles")
 		default:
 			b.WriteString("unknown")
 		}
 	case unix.PERF_TYPE_SOFTWARE:
-		b.WriteString("software_")
+		b.WriteString("sw_")
 		switch eventAttr.Config {
 		case unix.PERF_COUNT_SW_CPU_CLOCK:
 			b.WriteString("cpu_clock")
@@ -298,7 +298,7 @@ func EventAttrString(eventAttr *unix.PerfEventAttr) string {
 	case unix.PERF_TYPE_TRACEPOINT:
 		b.WriteString("tracepoint")
 	case unix.PERF_TYPE_HW_CACHE:
-		b.WriteString("hw_cache_")
+		b.WriteString("cache_")
 		switch eventAttr.Config {
 		case (unix.PERF_COUNT_HW_CACHE_L1D) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
 			b.WriteString("l1d_read")
