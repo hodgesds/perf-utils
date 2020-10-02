@@ -290,16 +290,18 @@ func BenchmarkRunBenchmarks(b *testing.B) {
 	cyclesEventAttr := CPUCyclesEventAttr()
 	cyclesEventAttr.Bits |= unix.PerfBitDisabled
 
-	eventAttrs := []*unix.PerfEventAttr{
-		&instrEventAttr,
-		&cyclesEventAttr,
+	eventAttrs := []unix.PerfEventAttr{
+		instrEventAttr,
+		cyclesEventAttr,
 	}
 	RunBenchmarks(
 		b,
 		func(b *testing.B) {
-			a := 42
-			for i := 0; i < 1000; i++ {
-				a += i
+			for j := 0; j < b.N; j++ {
+				a := 42
+				for i := 0; i < 1000; i++ {
+					a += i
+				}
 			}
 		},
 		true,

@@ -117,12 +117,26 @@ func BenchmarkTracepoints(
 	}
 }
 
+// auxillary function for RunBenchmarks: if an error occurs while setting
+// up performance counters, evaluate strict.  If strict mode is on, mark
+// the benchmark as skipped and log err.  If it is off, silently ignore
+// the failure.
+func failBenchmark(strict bool, b *testing.B, msg ...interface{}) {
+	b.Helper()
+	if strict {
+		b.Skip(msg...)
+	}
+}
+
 // RunBenchmarks runs a series of benchmarks for a set of PerfEventAttrs.
+// if strict is set, the benchmark is skipped if the desired performance
+// counters cannot be obtained.  If it is cleared, the performance counters
+// are silently ignored.
 func RunBenchmarks(
 	b *testing.B,
 	f func(b *testing.B),
 	strict bool,
-	eventAttrs ...*unix.PerfEventAttr,
+	eventAttrs ...unix.PerfEventAttr,
 ) {
 	cb, err := LockThread(rand.Intn(runtime.NumCPU()))
 	if err != nil {
@@ -132,73 +146,60 @@ func RunBenchmarks(
 
 	attrVals := map[string]float64{}
 	attrMap := map[string]int{}
-	for _, eventAttr := range eventAttrs {
+	for i := range eventAttrs {
 		fd, err := unix.PerfEventOpen(
-			eventAttr,
+			&eventAttrs[i],
 			unix.Gettid(),
 			-1,
 			-1,
 			0,
 		)
 		if err != nil {
-			b.Fatal(err)
+			failBenchmark(strict, b, EventAttrString(&eventAttrs[i]), err)
+			continue
 		}
-		key := EventAttrString(eventAttr)
+
+		key := EventAttrString(&eventAttrs[i])
 		attrMap[key] = fd
 		attrVals[key] = 0.0
 	}
 
-	b.ReportAllocs()
-	b.StopTimer()
+	b.StartTimer()
 	b.ResetTimer()
-	for n := 1; n < b.N; n++ {
-		b.StartTimer()
-		f(b)
-		b.StopTimer()
-		for key, fd := range attrMap {
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			f(b)
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, 0); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			buf := make([]byte, 24)
-			if _, err := syscall.Read(fd, buf); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			attrVals[key] += float64(binary.LittleEndian.Uint64(buf[0:8]))
-			b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
+	f(b)
+	b.StopTimer()
+
+	for key, fd := range attrMap {
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0); err != nil {
+			failBenchmark(strict, b, "PERF_EVENT_IOC_RESET:", err)
+			continue
 		}
 
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0); err != nil {
+			failBenchmark(strict, b, "PERF_EVENT_IOC_ENABLE:", err)
+			continue
+		}
+
+		f(b)
+
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, 0); err != nil {
+			failBenchmark(strict, b, "PERF_EVENT_IOC_DISABLE:", err)
+			continue
+		}
+
+		buf := make([]byte, 24)
+		if _, err := syscall.Read(fd, buf); err != nil {
+			failBenchmark(strict, b, "syscall.Read:", err)
+			continue
+		}
+
+		attrVals[key] += float64(binary.LittleEndian.Uint64(buf[0:8]))
+		b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
 	}
 
 	for _, fd := range attrMap {
-		if err := unix.Close(fd); err != nil {
-			if strict {
-				b.Fatal(err)
-			}
-			b.Log(err)
-		}
+		// errors on close are harmless here
+		_ = unix.Close(fd)
 	}
 }
 
