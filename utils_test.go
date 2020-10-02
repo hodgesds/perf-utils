@@ -290,16 +290,18 @@ func BenchmarkRunBenchmarks(b *testing.B) {
 	cyclesEventAttr := CPUCyclesEventAttr()
 	cyclesEventAttr.Bits |= unix.PerfBitDisabled
 
-	eventAttrs := []*unix.PerfEventAttr{
-		&instrEventAttr,
-		&cyclesEventAttr,
+	eventAttrs := []unix.PerfEventAttr{
+		instrEventAttr,
+		cyclesEventAttr,
 	}
 	RunBenchmarks(
 		b,
 		func(b *testing.B) {
-			a := 42
-			for i := 0; i < 1000; i++ {
-				a += i
+			for j := 0; j < b.N; j++ {
+				a := 42
+				for i := 0; i < 1000; i++ {
+					a += i
+				}
 			}
 		},
 		true,
@@ -314,7 +316,9 @@ func BenchmarkBenchmarkTracepoints(b *testing.B) {
 	BenchmarkTracepoints(
 		b,
 		func(b *testing.B) {
-			unix.Getrusage(0, &unix.Rusage{})
+			for i := 0; i < b.N; i++ {
+				unix.Getrusage(0, &unix.Rusage{})
+			}
 		},
 		true,
 		tracepoints...,

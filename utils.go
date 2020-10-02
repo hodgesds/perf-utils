@@ -28,7 +28,7 @@ func LockThread(core int) (func(), error) {
 	return runtime.UnlockOSThread, unix.SchedSetaffinity(0, &cpuSet)
 }
 
-// BenchmarkTracepoints runs benchmark and counts the
+// BenchmarkTracepoints runs benchmark and counts the tracepoints.
 func BenchmarkTracepoints(
 	b *testing.B,
 	f func(b *testing.B),
@@ -41,7 +41,6 @@ func BenchmarkTracepoints(
 	}
 	defer cb()
 
-	attrVals := map[string]float64{}
 	attrMap := map[string]int{}
 	for _, tracepoint := range tracepoints {
 		split := strings.Split(tracepoint, ":")
@@ -57,72 +56,70 @@ func BenchmarkTracepoints(
 			0,
 		)
 		if err != nil {
-			b.Fatal(err)
+			failBenchmark(strict, b, tracepoint, err)
+			continue
 		}
 		attrMap[tracepoint] = fd
-		attrVals[tracepoint] = 0.0
 	}
 
-	b.ReportAllocs()
-	b.StopTimer()
+	b.StartTimer()
 	b.ResetTimer()
-	for n := 1; n < b.N; n++ {
-		b.StartTimer()
-		f(b)
-		b.StopTimer()
-		for key, fd := range attrMap {
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			f(b)
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, 0); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			buf := make([]byte, 24)
-			if _, err := syscall.Read(fd, buf); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			attrVals[key] += float64(binary.LittleEndian.Uint64(buf[0:8]))
-			b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
+	f(b)
+	b.StopTimer()
+
+	for key, fd := range attrMap {
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0); err != nil {
+			failBenchmark(strict, b, "PERF_EVENT_IOC_RESET", err)
+			continue
 		}
 
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0); err != nil {
+			failBenchmark(strict, b, "PERF_EVENT_IOC_ENABLE", err)
+			continue
+		}
+
+		f(b)
+
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, 0); err != nil {
+			failBenchmark(strict, b, "PERF_EVENT_IOC_DISABLE", err)
+			continue
+		}
+
+		buf := make([]byte, 24)
+		if _, err := syscall.Read(fd, buf); err != nil {
+			failBenchmark(strict, b, "syscall.Read", err)
+			continue
+		}
+
+		b.ReportMetric(float64(binary.LittleEndian.Uint64(buf[0:8]))/float64(b.N), key+"/op")
 	}
 
 	for _, fd := range attrMap {
-		if err := unix.Close(fd); err != nil {
-			if strict {
-				b.Fatal(err)
-			}
-			b.Log(err)
-		}
+		// errors on close are harmless
+		_ = unix.Close(fd)
+	}
+}
+
+// auxillary function for RunBenchmarks: if an error occurs while setting
+// up performance counters, evaluate strict.  If strict mode is on, mark
+// the benchmark as skipped and log err.  If it is off, silently ignore
+// the failure.
+func failBenchmark(strict bool, b *testing.B, msg ...interface{}) {
+	b.Helper()
+	if strict {
+		b.Skip(msg...)
 	}
 }
 
 // RunBenchmarks runs a series of benchmarks for a set of PerfEventAttrs.
+// if strict is set, the benchmark is skipped if the desired performance
+// counters cannot be obtained.  If it is cleared, the performance counters
+// are silently ignored.
 func RunBenchmarks(
 	b *testing.B,
 	f func(b *testing.B),
 	strict bool,
-	eventAttrs ...*unix.PerfEventAttr,
+	eventAttrs ...unix.PerfEventAttr,
 ) {
 	cb, err := LockThread(rand.Intn(runtime.NumCPU()))
 	if err != nil {
@@ -130,75 +127,59 @@ func RunBenchmarks(
 	}
 	defer cb()
 
-	attrVals := map[string]float64{}
 	attrMap := map[string]int{}
-	for _, eventAttr := range eventAttrs {
+	for i := range eventAttrs {
 		fd, err := unix.PerfEventOpen(
-			eventAttr,
+			&eventAttrs[i],
 			unix.Gettid(),
 			-1,
 			-1,
 			0,
 		)
 		if err != nil {
-			b.Fatal(err)
+			failBenchmark(strict, b, EventAttrString(&eventAttrs[i]), err)
+			continue
 		}
-		key := EventAttrString(eventAttr)
+
+		key := EventAttrString(&eventAttrs[i])
 		attrMap[key] = fd
-		attrVals[key] = 0.0
 	}
 
-	b.ReportAllocs()
-	b.StopTimer()
+	b.StartTimer()
 	b.ResetTimer()
-	for n := 1; n < b.N; n++ {
-		b.StartTimer()
-		f(b)
-		b.StopTimer()
-		for key, fd := range attrMap {
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			f(b)
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, 0); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			buf := make([]byte, 24)
-			if _, err := syscall.Read(fd, buf); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				b.Log(err)
-				continue
-			}
-			attrVals[key] += float64(binary.LittleEndian.Uint64(buf[0:8]))
-			b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
+	f(b)
+	b.StopTimer()
+
+	for key, fd := range attrMap {
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0); err != nil {
+			failBenchmark(strict, b, "PERF_EVENT_IOC_RESET:", err)
+			continue
 		}
 
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0); err != nil {
+			failBenchmark(strict, b, "PERF_EVENT_IOC_ENABLE:", err)
+			continue
+		}
+
+		f(b)
+
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, 0); err != nil {
+			failBenchmark(strict, b, "PERF_EVENT_IOC_DISABLE:", err)
+			continue
+		}
+
+		buf := make([]byte, 24)
+		if _, err := syscall.Read(fd, buf); err != nil {
+			failBenchmark(strict, b, "syscall.Read:", err)
+			continue
+		}
+
+		b.ReportMetric(float64(binary.LittleEndian.Uint64(buf[0:8]))/float64(b.N), key+"/op")
 	}
 
 	for _, fd := range attrMap {
-		if err := unix.Close(fd); err != nil {
-			if strict {
-				b.Fatal(err)
-			}
-			b.Log(err)
-		}
+		// errors on close are harmless here
+		_ = unix.Close(fd)
 	}
 }
 
@@ -247,12 +228,12 @@ func EventAttrString(eventAttr *unix.PerfEventAttr) string {
 	var b strings.Builder
 	switch eventAttr.Type {
 	case unix.PERF_TYPE_HARDWARE:
-		b.WriteString("hardware_")
+		b.WriteString("hw_")
 		switch eventAttr.Config {
 		case unix.PERF_COUNT_HW_INSTRUCTIONS:
-			b.WriteString("instructions")
+			b.WriteString("insns")
 		case unix.PERF_COUNT_HW_CPU_CYCLES:
-			b.WriteString("cpu_cycles")
+			b.WriteString("cycles")
 		case unix.PERF_COUNT_HW_CACHE_REFERENCES:
 			b.WriteString("cache_ref")
 		case unix.PERF_COUNT_HW_CACHE_MISSES:
@@ -262,14 +243,14 @@ func EventAttrString(eventAttr *unix.PerfEventAttr) string {
 		case unix.PERF_COUNT_HW_STALLED_CYCLES_FRONTEND:
 			b.WriteString("stalled_cycles_frontend")
 		case unix.PERF_COUNT_HW_STALLED_CYCLES_BACKEND:
-			b.WriteString("stalled_cycles_frontend")
+			b.WriteString("stalled_cycles_backend")
 		case unix.PERF_COUNT_HW_REF_CPU_CYCLES:
-			b.WriteString("ref_cpu_cycles")
+			b.WriteString("ref_cycles")
 		default:
 			b.WriteString("unknown")
 		}
 	case unix.PERF_TYPE_SOFTWARE:
-		b.WriteString("software_")
+		b.WriteString("sw_")
 		switch eventAttr.Config {
 		case unix.PERF_COUNT_SW_CPU_CLOCK:
 			b.WriteString("cpu_clock")
@@ -297,7 +278,7 @@ func EventAttrString(eventAttr *unix.PerfEventAttr) string {
 	case unix.PERF_TYPE_TRACEPOINT:
 		b.WriteString("tracepoint")
 	case unix.PERF_TYPE_HW_CACHE:
-		b.WriteString("hw_cache_")
+		b.WriteString("cache_")
 		switch eventAttr.Config {
 		case (unix.PERF_COUNT_HW_CACHE_L1D) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
 			b.WriteString("l1d_read")
