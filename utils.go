@@ -41,7 +41,6 @@ func BenchmarkTracepoints(
 	}
 	defer cb()
 
-	attrVals := map[string]float64{}
 	attrMap := map[string]int{}
 	for _, tracepoint := range tracepoints {
 		split := strings.Split(tracepoint, ":")
@@ -61,7 +60,6 @@ func BenchmarkTracepoints(
 			continue
 		}
 		attrMap[tracepoint] = fd
-		attrVals[tracepoint] = 0.0
 	}
 
 	b.StartTimer()
@@ -93,8 +91,7 @@ func BenchmarkTracepoints(
 			continue
 		}
 
-		attrVals[key] += float64(binary.LittleEndian.Uint64(buf[0:8]))
-		b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
+		b.ReportMetric(float64(binary.LittleEndian.Uint64(buf[0:8]))/float64(b.N), key+"/op")
 	}
 
 	for _, fd := range attrMap {
@@ -130,7 +127,6 @@ func RunBenchmarks(
 	}
 	defer cb()
 
-	attrVals := map[string]float64{}
 	attrMap := map[string]int{}
 	for i := range eventAttrs {
 		fd, err := unix.PerfEventOpen(
@@ -147,7 +143,6 @@ func RunBenchmarks(
 
 		key := EventAttrString(&eventAttrs[i])
 		attrMap[key] = fd
-		attrVals[key] = 0.0
 	}
 
 	b.StartTimer()
@@ -179,8 +174,7 @@ func RunBenchmarks(
 			continue
 		}
 
-		attrVals[key] += float64(binary.LittleEndian.Uint64(buf[0:8]))
-		b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
+		b.ReportMetric(float64(binary.LittleEndian.Uint64(buf[0:8]))/float64(b.N), key+"/op")
 	}
 
 	for _, fd := range attrMap {
