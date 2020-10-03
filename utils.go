@@ -4,8 +4,12 @@ package perf
 
 import (
 	"encoding/binary"
+	"fmt"
+	"io/ioutil"
 	"math/rand"
+	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -32,26 +36,48 @@ func LockThread(core int) (func(), error) {
 func BenchmarkTracepoints(
 	b *testing.B,
 	f func(b *testing.B),
+	lockGoroutines bool,
 	strict bool,
 	tracepoints ...string,
 ) {
-	cb, err := LockThread(rand.Intn(runtime.NumCPU()))
-	if err != nil {
-		b.Fatal(err)
+	pidOrTid := os.Getpid()
+	if lockGoroutines {
+		cb, err := LockThread(rand.Intn(runtime.NumCPU()))
+		if err != nil {
+			b.Fatal(err)
+		}
+		defer cb()
+		pidOrTid = unix.Gettid()
 	}
-	defer cb()
 
-	attrVals := map[string]float64{}
-	attrMap := map[string]int{}
+	var (
+		strictLogged = false
+		attrVals     = map[string]float64{}
+		attrMap      = map[string]int{}
+		// map of thread profiles to the fd of the process profiler.
+		tidToPid  = map[int]int{}
+		groupTids = map[string][]int{}
+	)
+
 	for _, tracepoint := range tracepoints {
 		split := strings.Split(tracepoint, ":")
 		if len(split) != 2 {
 			b.Fatalf("Expected <subsystem>:<tracepoint>, got: %q", tracepoint)
 		}
 		eventAttr, err := TracepointEventAttr(split[0], split[1])
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		eventAttr.Bits |= unix.PerfBitDisabled | unix.PerfBitPinned | unix.PerfBitInherit | unix.PerfBitInheritStat | unix.PerfBitEnableOnExec
+		if !lockGoroutines {
+			eventAttr.Sample_type = PERF_SAMPLE_IDENTIFIER
+			eventAttr.Read_format = unix.PERF_FORMAT_GROUP
+		}
+
 		fd, err := unix.PerfEventOpen(
 			eventAttr,
-			unix.Gettid(),
+			pidOrTid,
 			-1,
 			-1,
 			0,
@@ -61,6 +87,38 @@ func BenchmarkTracepoints(
 		}
 		attrMap[tracepoint] = fd
 		attrVals[tracepoint] = 0.0
+		if lockGoroutines {
+			continue
+		}
+		groupTids[tracepoint] = []int{}
+
+		// Setup a profiler for all the threads in the current
+		// process with the inherit bit set. If the runtime
+		// spins up new threads they should get profiled.
+		childEventAttr := &unix.PerfEventAttr{
+			Type:        eventAttr.Type,
+			Config:      eventAttr.Config,
+			Read_format: unix.PERF_FORMAT_GROUP,
+			Bits:        unix.PerfBitInherit | unix.PerfBitPinned | unix.PerfBitInheritStat | unix.PerfBitEnableOnExec,
+		}
+		tids, err := getTids(pidOrTid)
+		if err != nil {
+			b.Fatal(err)
+		}
+		for _, tid := range tids {
+			tfd, err := unix.PerfEventOpen(
+				childEventAttr,
+				tid,
+				-1,
+				fd, // group leader is the process based profiler
+				unix.PERF_FLAG_FD_NO_GROUP,
+			)
+			if err != nil {
+				b.Fatal(err)
+			}
+			tidToPid[tfd] = fd
+			groupTids[tracepoint] = append(groupTids[tracepoint], fd)
+		}
 	}
 
 	b.ReportAllocs()
@@ -71,43 +129,100 @@ func BenchmarkTracepoints(
 		f(b)
 		b.StopTimer()
 		for key, fd := range attrMap {
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0); err != nil {
+			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, unix.PERF_IOC_FLAG_GROUP); err != nil {
 				if strict {
 					b.Fatal(err)
 				}
-				b.Log(err)
+				if !strictLogged {
+					b.Log(err)
+					strictLogged = true
+				}
 				continue
 			}
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0); err != nil {
+			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
 				if strict {
 					b.Fatal(err)
 				}
-				b.Log(err)
+				if !strictLogged {
+					b.Log(err)
+					strictLogged = true
+				}
 				continue
 			}
 			f(b)
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, 0); err != nil {
+			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
 				if strict {
 					b.Fatal(err)
 				}
-				b.Log(err)
+				if !strictLogged {
+					b.Log(err)
+					strictLogged = true
+				}
 				continue
 			}
-			buf := make([]byte, 24)
+			if lockGoroutines {
+				buf := make([]byte, 24)
+				if _, err := syscall.Read(fd, buf); err != nil {
+					if strict {
+						b.Fatal(err)
+					}
+					if !strictLogged {
+						b.Log(err)
+						strictLogged = true
+					}
+					continue
+				}
+				attrVals[key] += float64(binary.LittleEndian.Uint64(buf[0:8]))
+				b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
+				continue
+			}
+
+			// Get the number of children of this group leader.
+			events := len(groupTids[key])
+			buf := make([]byte, 8+8*events)
+
+			// read format of the group event looks like this:
+			/*
+				     struct read_format {
+					 u64 nr;            // The number of events /
+					 u64 time_enabled;  // if PERF_FORMAT_TOTAL_TIME_ENABLED
+					 u64 time_running;  // if PERF_FORMAT_TOTAL_TIME_RUNNING
+					 struct {
+					     u64 value;     // The value of the event
+					     u64 id;        // if PERF_FORMAT_ID
+					 } values[nr];
+				     };
+			*/
 			if _, err := syscall.Read(fd, buf); err != nil {
 				if strict {
 					b.Fatal(err)
 				}
-				b.Log(err)
+				if !strictLogged {
+					b.Log(err)
+					strictLogged = true
+				}
 				continue
 			}
-			attrVals[key] += float64(binary.LittleEndian.Uint64(buf[0:8]))
-			b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
+			offset := 8
+			for i := 0; i < int(events); i++ {
+				val := binary.LittleEndian.Uint64(buf[offset : offset+8])
+				offset += 8
+				attrVals[key] += float64(val)
+				b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
+			}
 		}
 
 	}
 
 	for _, fd := range attrMap {
+		if err := unix.Close(fd); err != nil {
+			if strict {
+				b.Fatal(err)
+			}
+			b.Log(err)
+		}
+	}
+	for fd := range tidToPid {
 		if err := unix.Close(fd); err != nil {
 			if strict {
 				b.Fatal(err)
@@ -121,21 +236,38 @@ func BenchmarkTracepoints(
 func RunBenchmarks(
 	b *testing.B,
 	f func(b *testing.B),
+	lockGoroutines bool,
 	strict bool,
-	eventAttrs ...*unix.PerfEventAttr,
+	eventAttrs ...unix.PerfEventAttr,
 ) {
-	cb, err := LockThread(rand.Intn(runtime.NumCPU()))
-	if err != nil {
-		b.Fatal(err)
+	pidOrTid := os.Getpid()
+	if lockGoroutines {
+		cb, err := LockThread(rand.Intn(runtime.NumCPU()))
+		if err != nil {
+			b.Fatal(err)
+		}
+		defer cb()
+		pidOrTid = unix.Gettid()
 	}
-	defer cb()
 
-	attrVals := map[string]float64{}
-	attrMap := map[string]int{}
+	var (
+		strictLogged = false
+		attrVals     = map[string]float64{}
+		attrMap      = map[string]int{}
+		// map of thread profiles to the fd of the process profiler.
+		tidToPid  = map[int]int{}
+		groupTids = map[string][]int{}
+	)
 	for _, eventAttr := range eventAttrs {
+		eventAttr.Bits |= unix.PerfBitDisabled | unix.PerfBitPinned | unix.PerfBitInherit | unix.PerfBitInheritStat | unix.PerfBitEnableOnExec
+		if !lockGoroutines {
+			eventAttr.Sample_type = PERF_SAMPLE_IDENTIFIER
+			eventAttr.Read_format = unix.PERF_FORMAT_GROUP
+		}
+
 		fd, err := unix.PerfEventOpen(
-			eventAttr,
-			unix.Gettid(),
+			&eventAttr,
+			pidOrTid,
 			-1,
 			-1,
 			0,
@@ -143,9 +275,42 @@ func RunBenchmarks(
 		if err != nil {
 			b.Fatal(err)
 		}
-		key := EventAttrString(eventAttr)
+		key := EventAttrString(&eventAttr)
 		attrMap[key] = fd
 		attrVals[key] = 0.0
+
+		if lockGoroutines {
+			continue
+		}
+		groupTids[key] = []int{}
+
+		// Setup a profiler for all the threads in the current
+		// process with the inherit bit set. If the runtime
+		// spins up new threads they should get profiled.
+		childEventAttr := &unix.PerfEventAttr{
+			Type:        eventAttr.Type,
+			Config:      eventAttr.Config,
+			Read_format: unix.PERF_FORMAT_GROUP,
+			Bits:        unix.PerfBitInherit | unix.PerfBitPinned | unix.PerfBitInheritStat | unix.PerfBitEnableOnExec,
+		}
+		tids, err := getTids(pidOrTid)
+		if err != nil {
+			b.Fatal(err)
+		}
+		for _, tid := range tids {
+			tfd, err := unix.PerfEventOpen(
+				childEventAttr,
+				tid,
+				-1,
+				fd, // group leader is the process based profiler
+				unix.PERF_FLAG_FD_NO_GROUP,
+			)
+			if err != nil {
+				b.Fatal(err)
+			}
+			tidToPid[tfd] = fd
+			groupTids[key] = append(groupTids[key], fd)
+		}
 	}
 
 	b.ReportAllocs()
@@ -156,43 +321,98 @@ func RunBenchmarks(
 		f(b)
 		b.StopTimer()
 		for key, fd := range attrMap {
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0); err != nil {
+			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, unix.PERF_IOC_FLAG_GROUP); err != nil {
 				if strict {
 					b.Fatal(err)
 				}
-				b.Log(err)
+				if !strictLogged {
+					b.Log(err)
+					strictLogged = true
+				}
 				continue
 			}
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0); err != nil {
+			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
 				if strict {
 					b.Fatal(err)
 				}
-				b.Log(err)
+				if !strictLogged {
+					b.Log(err)
+					strictLogged = true
+				}
 				continue
 			}
 			f(b)
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, 0); err != nil {
+			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
 				if strict {
 					b.Fatal(err)
 				}
-				b.Log(err)
+				if !strictLogged {
+					b.Log(err)
+					strictLogged = true
+				}
 				continue
 			}
-			buf := make([]byte, 24)
+			if lockGoroutines {
+				buf := make([]byte, 24)
+				if _, err := syscall.Read(fd, buf); err != nil {
+					if strict {
+						b.Fatal(err)
+					}
+					if !strictLogged {
+						b.Log(err)
+						strictLogged = true
+					}
+					continue
+				}
+				attrVals[key] += float64(binary.LittleEndian.Uint64(buf[0:8]))
+				b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
+				continue
+			}
+			// Get the number of children of this group leader.
+			events := len(groupTids[key])
+			buf := make([]byte, 8+8*events)
+
+			// read format of the group event looks like this:
+			/*
+				     struct read_format {
+					 u64 nr;            // The number of events /
+					 u64 time_enabled;  // if PERF_FORMAT_TOTAL_TIME_ENABLED
+					 u64 time_running;  // if PERF_FORMAT_TOTAL_TIME_RUNNING
+					 struct {
+					     u64 value;     // The value of the event
+					     u64 id;        // if PERF_FORMAT_ID
+					 } values[nr];
+				     };
+			*/
 			if _, err := syscall.Read(fd, buf); err != nil {
 				if strict {
 					b.Fatal(err)
 				}
-				b.Log(err)
+				if !strictLogged {
+					b.Log(err)
+					strictLogged = true
+				}
 				continue
 			}
-			attrVals[key] += float64(binary.LittleEndian.Uint64(buf[0:8]))
-			b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
+			offset := 8
+			for i := 0; i < int(events); i++ {
+				val := binary.LittleEndian.Uint64(buf[offset : offset+8])
+				offset += 8
+				attrVals[key] += float64(val)
+				b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
+			}
 		}
-
 	}
 
 	for _, fd := range attrMap {
+		if err := unix.Close(fd); err != nil {
+			if strict {
+				b.Fatal(err)
+			}
+			b.Log(err)
+		}
+	}
+	for fd := range tidToPid {
 		if err := unix.Close(fd); err != nil {
 			if strict {
 				b.Fatal(err)
@@ -247,12 +467,12 @@ func EventAttrString(eventAttr *unix.PerfEventAttr) string {
 	var b strings.Builder
 	switch eventAttr.Type {
 	case unix.PERF_TYPE_HARDWARE:
-		b.WriteString("hardware_")
+		b.WriteString("hw_")
 		switch eventAttr.Config {
 		case unix.PERF_COUNT_HW_INSTRUCTIONS:
-			b.WriteString("instructions")
+			b.WriteString("instr")
 		case unix.PERF_COUNT_HW_CPU_CYCLES:
-			b.WriteString("cpu_cycles")
+			b.WriteString("cycles")
 		case unix.PERF_COUNT_HW_CACHE_REFERENCES:
 			b.WriteString("cache_ref")
 		case unix.PERF_COUNT_HW_CACHE_MISSES:
@@ -260,16 +480,16 @@ func EventAttrString(eventAttr *unix.PerfEventAttr) string {
 		case unix.PERF_COUNT_HW_BUS_CYCLES:
 			b.WriteString("bus_cycles")
 		case unix.PERF_COUNT_HW_STALLED_CYCLES_FRONTEND:
-			b.WriteString("stalled_cycles_frontend")
+			b.WriteString("stalled_cycles_front")
 		case unix.PERF_COUNT_HW_STALLED_CYCLES_BACKEND:
-			b.WriteString("stalled_cycles_frontend")
+			b.WriteString("stalled_cycles_back")
 		case unix.PERF_COUNT_HW_REF_CPU_CYCLES:
-			b.WriteString("ref_cpu_cycles")
+			b.WriteString("ref_cycles")
 		default:
 			b.WriteString("unknown")
 		}
 	case unix.PERF_TYPE_SOFTWARE:
-		b.WriteString("software_")
+		b.WriteString("sw_")
 		switch eventAttr.Config {
 		case unix.PERF_COUNT_SW_CPU_CLOCK:
 			b.WriteString("cpu_clock")
@@ -278,17 +498,17 @@ func EventAttrString(eventAttr *unix.PerfEventAttr) string {
 		case unix.PERF_COUNT_SW_PAGE_FAULTS:
 			b.WriteString("page_faults")
 		case unix.PERF_COUNT_SW_CONTEXT_SWITCHES:
-			b.WriteString("context_switches")
+			b.WriteString("ctx_switches")
 		case unix.PERF_COUNT_SW_CPU_MIGRATIONS:
-			b.WriteString("cpu_migrations")
+			b.WriteString("migrations")
 		case unix.PERF_COUNT_SW_PAGE_FAULTS_MIN:
-			b.WriteString("minor_page_faults")
+			b.WriteString("minor_faults")
 		case unix.PERF_COUNT_SW_PAGE_FAULTS_MAJ:
-			b.WriteString("major_page_faults")
+			b.WriteString("major_faults")
 		case unix.PERF_COUNT_SW_ALIGNMENT_FAULTS:
-			b.WriteString("alignment_faults")
+			b.WriteString("align_faults")
 		case unix.PERF_COUNT_SW_EMULATION_FAULTS:
-			b.WriteString("emulation_faults")
+			b.WriteString("emul_faults")
 		default:
 			b.WriteString("unknown")
 		}
@@ -297,7 +517,7 @@ func EventAttrString(eventAttr *unix.PerfEventAttr) string {
 	case unix.PERF_TYPE_TRACEPOINT:
 		b.WriteString("tracepoint")
 	case unix.PERF_TYPE_HW_CACHE:
-		b.WriteString("hw_cache_")
+		b.WriteString("cache_")
 		switch eventAttr.Config {
 		case (unix.PERF_COUNT_HW_CACHE_L1D) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
 			b.WriteString("l1d_read")
@@ -316,9 +536,9 @@ func EventAttrString(eventAttr *unix.PerfEventAttr) string {
 		case (unix.PERF_COUNT_HW_CACHE_BPU) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
 			b.WriteString("bpu_read")
 		case (unix.PERF_COUNT_HW_CACHE_NODE) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
-			b.WriteString("node_cache_read")
+			b.WriteString("node_read")
 		case (unix.PERF_COUNT_HW_CACHE_NODE) | (unix.PERF_COUNT_HW_CACHE_OP_WRITE << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
-			b.WriteString("node_cache_write")
+			b.WriteString("node_write")
 		default:
 			b.WriteString("unknown")
 		}
@@ -955,4 +1175,22 @@ func NodeCacheEventAttr(op, result int) unix.PerfEventAttr {
 		Bits:        unix.PerfBitExcludeKernel | unix.PerfBitExcludeHv,
 		Read_format: unix.PERF_FORMAT_TOTAL_TIME_RUNNING | unix.PERF_FORMAT_TOTAL_TIME_ENABLED,
 	}
+}
+
+// returns the set of all thread ids for the a process.
+func getTids(pid int) ([]int, error) {
+	fileInfo, err := ioutil.ReadDir(fmt.Sprintf("/proc/%d/task", pid))
+	if err != nil {
+		return nil, err
+	}
+	tids := []int{}
+
+	for _, file := range fileInfo {
+		tid, err := strconv.Atoi(file.Name())
+		if err != nil {
+			return nil, err
+		}
+		tids = append(tids, tid)
+	}
+	return tids, nil
 }

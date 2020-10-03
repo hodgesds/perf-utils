@@ -1,6 +1,7 @@
 package perf
 
 import (
+	"os"
 	"runtime"
 	"testing"
 
@@ -263,6 +264,16 @@ func TestNodeCache(t *testing.T) {
 	}
 }
 
+func TestGetTids(t *testing.T) {
+	tids, err := getTids(os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tids) == 1 {
+		t.Fatalf("expected multiple threads, got: %+v", tids)
+	}
+}
+
 func BenchmarkCPUCycles(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -285,14 +296,28 @@ func BenchmarkThreadLocking(b *testing.B) {
 }
 
 func BenchmarkRunBenchmarks(b *testing.B) {
-	instrEventAttr := CPUInstructionsEventAttr()
-	instrEventAttr.Bits |= unix.PerfBitDisabled
-	cyclesEventAttr := CPUCyclesEventAttr()
-	cyclesEventAttr.Bits |= unix.PerfBitDisabled
+	eventAttrs := []unix.PerfEventAttr{
+		CPUInstructionsEventAttr(),
+		CPUCyclesEventAttr(),
+	}
+	RunBenchmarks(
+		b,
+		func(b *testing.B) {
+			a := 42
+			for i := 0; i < 1000; i++ {
+				a += i
+			}
+		},
+		false,
+		true,
+		eventAttrs...,
+	)
+}
 
-	eventAttrs := []*unix.PerfEventAttr{
-		&instrEventAttr,
-		&cyclesEventAttr,
+func BenchmarkRunBenchmarksLocked(b *testing.B) {
+	eventAttrs := []unix.PerfEventAttr{
+		CPUInstructionsEventAttr(),
+		CPUCyclesEventAttr(),
 	}
 	RunBenchmarks(
 		b,
@@ -303,7 +328,28 @@ func BenchmarkRunBenchmarks(b *testing.B) {
 			}
 		},
 		true,
+		true,
 		eventAttrs...,
+	)
+}
+
+func BenchmarkBenchmarkTracepointsLocked(b *testing.B) {
+	tracepoints := []string{
+		"syscalls:sys_enter_getrusage",
+	}
+	BenchmarkTracepoints(
+		b,
+		func(b *testing.B) {
+			if err := unix.Getrusage(0, &unix.Rusage{}); err != nil {
+				b.Fatal(err)
+			}
+			if err := unix.Getrusage(0, &unix.Rusage{}); err != nil {
+				b.Fatal(err)
+			}
+		},
+		true,
+		true,
+		tracepoints...,
 	)
 }
 
@@ -314,8 +360,14 @@ func BenchmarkBenchmarkTracepoints(b *testing.B) {
 	BenchmarkTracepoints(
 		b,
 		func(b *testing.B) {
-			unix.Getrusage(0, &unix.Rusage{})
+			if err := unix.Getrusage(0, &unix.Rusage{}); err != nil {
+				b.Fatal(err)
+			}
+			if err := unix.Getrusage(0, &unix.Rusage{}); err != nil {
+				b.Fatal(err)
+			}
 		},
+		false,
 		true,
 		tracepoints...,
 	)

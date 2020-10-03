@@ -129,14 +129,10 @@ results from PerfEventAttrs:
 
 ```
 func BenchmarkRunBenchmarks(b *testing.B) {
-	instrEventAttr := CPUInstructionsEventAttr()
-	instrEventAttr.Bits |= unix.PerfBitDisabled
-	cyclesEventAttr := CPUCyclesEventAttr()
-	cyclesEventAttr.Bits |= unix.PerfBitDisabled
 
-	eventAttrs := []*unix.PerfEventAttr{
-		&instrEventAttr,
-		&cyclesEventAttr,
+	eventAttrs := []unix.PerfEventAttr{
+		CPUInstructionsEventAttr(),
+		CPUCyclesEventAttr(),
 	}
 	RunBenchmarks(
 		b,
@@ -147,6 +143,7 @@ func BenchmarkRunBenchmarks(b *testing.B) {
 			}
 		},
 		true,
+		true,
 		eventAttrs...,
 	)
 }
@@ -155,7 +152,7 @@ go test  -bench=BenchmarkRunBenchmarks
 goos: linux
 goarch: amd64
 pkg: github.com/hodgesds/iouring-go/go/src/github.com/hodgesds/perf-utils
-BenchmarkRunBenchmarks-8         3119304               388 ns/op              1336 hardware_cpu_cycles/op             3314 hardware_instructions/op            0 B/op          0 allocs/op
+BenchmarkRunBenchmarks-8         3119304               388 ns/op              1336 hw_cycles/op             3314 hw_instr/op            0 B/op          0 allocs/op
 ```
 
 If you want to run a benchmark tracepoints (ie `perf list` or `cat
@@ -173,6 +170,7 @@ func BenchmarkBenchmarkTracepoints(b *testing.B) {
 			unix.Getrusage(0, &unix.Rusage{})
 		},
 		true,
+		true,
 		tracepoints...,
 	)
 }
@@ -184,7 +182,7 @@ pkg: github.com/hodgesds/perf-utils
 BenchmarkProfiler-8                      2014984               584 ns/op              32 B/op          1 allocs/op
 BenchmarkCPUCycles-8                        2332            485937 ns/op              32 B/op          1 allocs/op
 BenchmarkThreadLocking-8                278850051                4.23 ns/op            0 B/op          0 allocs/op
-BenchmarkRunBenchmarks-8                 3104167               403 ns/op              1399 hardware_cpu_cycles/op             3314 hardware_instructions/op            0 B/op          0 allocs/op
+BenchmarkRunBenchmarks-8                 3104167               403 ns/op              1399 hw_cycles/op             3314 hw_instr/op            0 B/op          0 allocs/op
 BenchmarkBenchmarkTracepoints-8          1346517               915 ns/op                 1.00 syscalls:sys_enter_getrusage/op          0 B/op          0 allocs/op
 PASS
 ok      github.com/hodgesds/perf-utils  138.575s
@@ -202,3 +200,6 @@ compatible with perf, I found a really good
 on how to do so. Eventually, after digging through some of the `/x/sys/unix`
 code I found pretty much what I was needed. However, I think if you are
 interested in interacting with the kernel it is a worthwhile read.
+
+- [Concurrent Hardware Monitoring](https://stackoverflow.com/questions/61879227/perf-type-hardware-and-perf-type-hw-cache-concurrent-monitoring)
+- [Perf event scheduling](https://hadibrais.wordpress.com/2019/09/06/the-linux-perf-event-scheduling-algorithm/)
