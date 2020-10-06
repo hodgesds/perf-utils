@@ -16,7 +16,9 @@ with a CPU set mask set. Note that if the pid argument is set 0 the calling
 thread is used (the thread that was just locked). Before using this library you
 should probably read the
 [`perf_event_open`](http://www.man7.org/linux/man-pages/man2/perf_event_open.2.html)
-man page which this library uses heavily.
+man page which this library uses heavily. See this [kernel
+guide](https://perf.wiki.kernel.org/index.php/Tutorial) for a tutorial how to
+use perf and some of the limitations.
 
 # Use Cases
 If you are looking to interact with the perf subsystem directly with
@@ -137,9 +139,11 @@ func BenchmarkRunBenchmarks(b *testing.B) {
 	RunBenchmarks(
 		b,
 		func(b *testing.B) {
-			a := 42
-			for i := 0; i < 1000; i++ {
-				a += i
+			for n := 1; n < b.N; n++ {
+				a := 42
+				for i := 0; i < 1000; i++ {
+					a += i
+				}
 			}
 		},
 		BenchmarkLockGroutine|BenchmarkStrict,
@@ -166,7 +170,9 @@ func BenchmarkBenchmarkTracepoints(b *testing.B) {
 	BenchmarkTracepoints(
 		b,
 		func(b *testing.B) {
-			unix.Getrusage(0, &unix.Rusage{})
+			for n := 1; n < b.N; n++ {
+				unix.Getrusage(0, &unix.Rusage{})
+			}
 		},
 		BenchmarkLockGroutine|BenchmarkStrict,
 		tracepoints...,
