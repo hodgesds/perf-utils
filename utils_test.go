@@ -303,13 +303,14 @@ func BenchmarkRunBenchmarks(b *testing.B) {
 	RunBenchmarks(
 		b,
 		func(b *testing.B) {
-			a := 42
-			for i := 0; i < 1000; i++ {
-				a += i
+			for n := 1; n < b.N; n++ {
+				a := 42
+				for i := 0; i < 1000; i++ {
+					a += i
+				}
 			}
 		},
-		false,
-		true,
+		BenchmarkStrict,
 		eventAttrs...,
 	)
 }
@@ -322,13 +323,14 @@ func BenchmarkRunBenchmarksLocked(b *testing.B) {
 	RunBenchmarks(
 		b,
 		func(b *testing.B) {
-			a := 42
-			for i := 0; i < 1000; i++ {
-				a += i
+			for n := 1; n < b.N; n++ {
+				a := 42
+				for i := 0; i < 1000; i++ {
+					a += i
+				}
 			}
 		},
-		true,
-		true,
+		BenchmarkLockGoroutine|BenchmarkStrict,
 		eventAttrs...,
 	)
 }
@@ -340,15 +342,16 @@ func BenchmarkBenchmarkTracepointsLocked(b *testing.B) {
 	BenchmarkTracepoints(
 		b,
 		func(b *testing.B) {
-			if err := unix.Getrusage(0, &unix.Rusage{}); err != nil {
-				b.Fatal(err)
-			}
-			if err := unix.Getrusage(0, &unix.Rusage{}); err != nil {
-				b.Fatal(err)
+			for n := 1; n < b.N; n++ {
+				if err := unix.Getrusage(0, &unix.Rusage{}); err != nil {
+					b.Fatal(err)
+				}
+				if err := unix.Getrusage(0, &unix.Rusage{}); err != nil {
+					b.Fatal(err)
+				}
 			}
 		},
-		true,
-		true,
+		BenchmarkLockGoroutine|BenchmarkStrict,
 		tracepoints...,
 	)
 }
@@ -360,15 +363,16 @@ func BenchmarkBenchmarkTracepoints(b *testing.B) {
 	BenchmarkTracepoints(
 		b,
 		func(b *testing.B) {
-			if err := unix.Getrusage(0, &unix.Rusage{}); err != nil {
-				b.Fatal(err)
-			}
-			if err := unix.Getrusage(0, &unix.Rusage{}); err != nil {
-				b.Fatal(err)
+			for n := 1; n < b.N; n++ {
+				if err := unix.Getrusage(0, &unix.Rusage{}); err != nil {
+					b.Fatal(err)
+				}
+				if err := unix.Getrusage(0, &unix.Rusage{}); err != nil {
+					b.Fatal(err)
+				}
 			}
 		},
-		false,
-		true,
+		BenchmarkStrict,
 		tracepoints...,
 	)
 }

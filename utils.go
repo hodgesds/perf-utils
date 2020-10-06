@@ -18,9 +18,19 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// BenchmarkOption is a benchmark option.
+type BenchmarkOption uint8
+
 var (
 	// EventAttrSize is the size of a PerfEventAttr
 	EventAttrSize = uint32(unsafe.Sizeof(unix.PerfEventAttr{}))
+)
+
+const (
+	// BenchmarkLockGoroutine is used to lock a benchmark to a goroutine.
+	BenchmarkLockGoroutine BenchmarkOption = 1 << iota
+	// BenchmarkStrict is used to fail a benchmark if one or more events can be profiled.
+	BenchmarkStrict
 )
 
 // LockThread locks an goroutine to an OS thread and then sets the affinity of
@@ -32,16 +42,26 @@ func LockThread(core int) (func(), error) {
 	return runtime.UnlockOSThread, unix.SchedSetaffinity(0, &cpuSet)
 }
 
+// failBenchmark is a helper function for RunBenchmarks: if an error occurs
+// while setting up performance counters, evaluate strict.  If strict mode is
+// on, mark the benchmark as skipped and log err.  If it is off, silently
+// ignore the failure.
+func failBenchmark(options BenchmarkOption, b *testing.B, msg ...interface{}) {
+	b.Helper()
+	if options&BenchmarkStrict > 0 {
+		b.Skip(msg...)
+	}
+}
+
 // BenchmarkTracepoints runs benchmark and counts the
 func BenchmarkTracepoints(
 	b *testing.B,
 	f func(b *testing.B),
-	lockGoroutines bool,
-	strict bool,
+	options BenchmarkOption,
 	tracepoints ...string,
 ) {
 	pidOrTid := os.Getpid()
-	if lockGoroutines {
+	if options&BenchmarkLockGoroutine > 0 {
 		cb, err := LockThread(rand.Intn(runtime.NumCPU()))
 		if err != nil {
 			b.Fatal(err)
@@ -51,9 +71,7 @@ func BenchmarkTracepoints(
 	}
 
 	var (
-		strictLogged = false
-		attrVals     = map[string]float64{}
-		attrMap      = map[string]int{}
+		attrMap = map[string]int{}
 		// map of thread profiles to the fd of the process profiler.
 		tidToPid  = map[int]int{}
 		groupTids = map[string][]int{}
@@ -66,11 +84,12 @@ func BenchmarkTracepoints(
 		}
 		eventAttr, err := TracepointEventAttr(split[0], split[1])
 		if err != nil {
-			b.Fatal(err)
+			failBenchmark(options, b, err)
+			continue
 		}
 
 		eventAttr.Bits |= unix.PerfBitDisabled | unix.PerfBitPinned | unix.PerfBitInherit | unix.PerfBitInheritStat | unix.PerfBitEnableOnExec
-		if !lockGoroutines {
+		if options&BenchmarkLockGoroutine == 0 {
 			eventAttr.Sample_type = PERF_SAMPLE_IDENTIFIER
 			eventAttr.Read_format = unix.PERF_FORMAT_GROUP
 		}
@@ -83,11 +102,11 @@ func BenchmarkTracepoints(
 			0,
 		)
 		if err != nil {
-			b.Fatal(err)
+			failBenchmark(options, b, err)
+			continue
 		}
 		attrMap[tracepoint] = fd
-		attrVals[tracepoint] = 0.0
-		if lockGoroutines {
+		if options&BenchmarkLockGoroutine > 0 {
 			continue
 		}
 		groupTids[tracepoint] = []int{}
@@ -114,7 +133,8 @@ func BenchmarkTracepoints(
 				unix.PERF_FLAG_FD_NO_GROUP,
 			)
 			if err != nil {
-				b.Fatal(err)
+				failBenchmark(options, b, err)
+				continue
 			}
 			tidToPid[tfd] = fd
 			groupTids[tracepoint] = append(groupTids[tracepoint], fd)
@@ -122,113 +142,66 @@ func BenchmarkTracepoints(
 	}
 
 	b.ReportAllocs()
+	b.StartTimer()
+	f(b)
 	b.StopTimer()
-	b.ResetTimer()
-	for n := 1; n < b.N; n++ {
-		b.StartTimer()
+	for key, fd := range attrMap {
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, unix.PERF_IOC_FLAG_GROUP); err != nil {
+			failBenchmark(options, b, err)
+			continue
+		}
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
+			failBenchmark(options, b, err)
+		}
 		f(b)
-		b.StopTimer()
-		for key, fd := range attrMap {
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, unix.PERF_IOC_FLAG_GROUP); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				if !strictLogged {
-					b.Log(err)
-					strictLogged = true
-				}
-				continue
-			}
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				if !strictLogged {
-					b.Log(err)
-					strictLogged = true
-				}
-				continue
-			}
-			f(b)
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				if !strictLogged {
-					b.Log(err)
-					strictLogged = true
-				}
-				continue
-			}
-			if lockGoroutines {
-				buf := make([]byte, 24)
-				if _, err := syscall.Read(fd, buf); err != nil {
-					if strict {
-						b.Fatal(err)
-					}
-					if !strictLogged {
-						b.Log(err)
-						strictLogged = true
-					}
-					continue
-				}
-				attrVals[key] += float64(binary.LittleEndian.Uint64(buf[0:8]))
-				b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
-				continue
-			}
-
-			// Get the number of children of this group leader.
-			events := len(groupTids[key])
-			buf := make([]byte, 8+8*events)
-
-			// read format of the group event looks like this:
-			/*
-				     struct read_format {
-					 u64 nr;            // The number of events /
-					 u64 time_enabled;  // if PERF_FORMAT_TOTAL_TIME_ENABLED
-					 u64 time_running;  // if PERF_FORMAT_TOTAL_TIME_RUNNING
-					 struct {
-					     u64 value;     // The value of the event
-					     u64 id;        // if PERF_FORMAT_ID
-					 } values[nr];
-				     };
-			*/
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
+			failBenchmark(options, b, err)
+			continue
+		}
+		if options&BenchmarkLockGoroutine > 0 {
+			buf := make([]byte, 24)
 			if _, err := syscall.Read(fd, buf); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				if !strictLogged {
-					b.Log(err)
-					strictLogged = true
-				}
+				failBenchmark(options, b, err)
 				continue
 			}
-			offset := 8
-			for i := 0; i < int(events); i++ {
-				val := binary.LittleEndian.Uint64(buf[offset : offset+8])
-				offset += 8
-				attrVals[key] += float64(val)
-				b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
-			}
+			b.ReportMetric(float64(binary.LittleEndian.Uint64(buf[0:8]))/float64(b.N), key+"/op")
+			continue
+		}
+
+		// Get the number of children of this group leader.
+		events := len(groupTids[key])
+		buf := make([]byte, 8+8*events)
+
+		// read format of the group event looks like this:
+		/*
+			     struct read_format {
+				 u64 nr;            // The number of events /
+				 u64 time_enabled;  // if PERF_FORMAT_TOTAL_TIME_ENABLED
+				 u64 time_running;  // if PERF_FORMAT_TOTAL_TIME_RUNNING
+				 struct {
+				     u64 value;     // The value of the event
+				     u64 id;        // if PERF_FORMAT_ID
+				 } values[nr];
+			     };
+		*/
+		if _, err := syscall.Read(fd, buf); err != nil {
+			failBenchmark(options, b, err)
+			continue
+		}
+		offset := 8
+		for i := 0; i < int(events); i++ {
+			val := binary.LittleEndian.Uint64(buf[offset : offset+8])
+			b.ReportMetric(float64(val)/float64(b.N), key+"/op")
+			offset += 8
 		}
 
 	}
 
 	for _, fd := range attrMap {
-		if err := unix.Close(fd); err != nil {
-			if strict {
-				b.Fatal(err)
-			}
-			b.Log(err)
-		}
+		_ = unix.Close(fd)
 	}
 	for fd := range tidToPid {
-		if err := unix.Close(fd); err != nil {
-			if strict {
-				b.Fatal(err)
-			}
-			b.Log(err)
-		}
+		_ = unix.Close(fd)
 	}
 }
 
@@ -236,12 +209,11 @@ func BenchmarkTracepoints(
 func RunBenchmarks(
 	b *testing.B,
 	f func(b *testing.B),
-	lockGoroutines bool,
-	strict bool,
+	options BenchmarkOption,
 	eventAttrs ...unix.PerfEventAttr,
 ) {
 	pidOrTid := os.Getpid()
-	if lockGoroutines {
+	if options&BenchmarkLockGoroutine > 0 {
 		cb, err := LockThread(rand.Intn(runtime.NumCPU()))
 		if err != nil {
 			b.Fatal(err)
@@ -251,16 +223,15 @@ func RunBenchmarks(
 	}
 
 	var (
-		strictLogged = false
-		attrVals     = map[string]float64{}
-		attrMap      = map[string]int{}
 		// map of thread profiles to the fd of the process profiler.
+		attrMap   = map[string]int{}
 		tidToPid  = map[int]int{}
 		groupTids = map[string][]int{}
 	)
+
 	for _, eventAttr := range eventAttrs {
 		eventAttr.Bits |= unix.PerfBitDisabled | unix.PerfBitPinned | unix.PerfBitInherit | unix.PerfBitInheritStat | unix.PerfBitEnableOnExec
-		if !lockGoroutines {
+		if options&BenchmarkLockGoroutine == 0 {
 			eventAttr.Sample_type = PERF_SAMPLE_IDENTIFIER
 			eventAttr.Read_format = unix.PERF_FORMAT_GROUP
 		}
@@ -277,9 +248,8 @@ func RunBenchmarks(
 		}
 		key := EventAttrString(&eventAttr)
 		attrMap[key] = fd
-		attrVals[key] = 0.0
 
-		if lockGoroutines {
+		if options&BenchmarkLockGoroutine > 0 {
 			continue
 		}
 		groupTids[key] = []int{}
@@ -295,7 +265,8 @@ func RunBenchmarks(
 		}
 		tids, err := getTids(pidOrTid)
 		if err != nil {
-			b.Fatal(err)
+			failBenchmark(options, b, err)
+			continue
 		}
 		for _, tid := range tids {
 			tfd, err := unix.PerfEventOpen(
@@ -314,111 +285,65 @@ func RunBenchmarks(
 	}
 
 	b.ReportAllocs()
+	b.StartTimer()
+	f(b)
 	b.StopTimer()
-	b.ResetTimer()
-	for n := 1; n < b.N; n++ {
-		b.StartTimer()
+	for key, fd := range attrMap {
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, unix.PERF_IOC_FLAG_GROUP); err != nil {
+			failBenchmark(options, b, err)
+			continue
+		}
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
+			failBenchmark(options, b, err)
+			continue
+		}
 		f(b)
-		b.StopTimer()
-		for key, fd := range attrMap {
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, unix.PERF_IOC_FLAG_GROUP); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				if !strictLogged {
-					b.Log(err)
-					strictLogged = true
-				}
-				continue
-			}
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				if !strictLogged {
-					b.Log(err)
-					strictLogged = true
-				}
-				continue
-			}
-			f(b)
-			if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				if !strictLogged {
-					b.Log(err)
-					strictLogged = true
-				}
-				continue
-			}
-			if lockGoroutines {
-				buf := make([]byte, 24)
-				if _, err := syscall.Read(fd, buf); err != nil {
-					if strict {
-						b.Fatal(err)
-					}
-					if !strictLogged {
-						b.Log(err)
-						strictLogged = true
-					}
-					continue
-				}
-				attrVals[key] += float64(binary.LittleEndian.Uint64(buf[0:8]))
-				b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
-				continue
-			}
-			// Get the number of children of this group leader.
-			events := len(groupTids[key])
-			buf := make([]byte, 8+8*events)
-
-			// read format of the group event looks like this:
-			/*
-				     struct read_format {
-					 u64 nr;            // The number of events /
-					 u64 time_enabled;  // if PERF_FORMAT_TOTAL_TIME_ENABLED
-					 u64 time_running;  // if PERF_FORMAT_TOTAL_TIME_RUNNING
-					 struct {
-					     u64 value;     // The value of the event
-					     u64 id;        // if PERF_FORMAT_ID
-					 } values[nr];
-				     };
-			*/
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
+			failBenchmark(options, b, err)
+			continue
+		}
+		if options&BenchmarkLockGoroutine > 0 {
+			buf := make([]byte, 24)
 			if _, err := syscall.Read(fd, buf); err != nil {
-				if strict {
-					b.Fatal(err)
-				}
-				if !strictLogged {
-					b.Log(err)
-					strictLogged = true
-				}
+				failBenchmark(options, b, err)
 				continue
 			}
-			offset := 8
-			for i := 0; i < int(events); i++ {
-				val := binary.LittleEndian.Uint64(buf[offset : offset+8])
-				offset += 8
-				attrVals[key] += float64(val)
-				b.ReportMetric(attrVals[key]/float64(b.N), key+"/op")
-			}
+			b.ReportMetric(float64(binary.LittleEndian.Uint64(buf[0:8]))/float64(b.N), key+"/op")
+			continue
+		}
+		// Get the number of children of this group leader.
+		events := len(groupTids[key])
+		buf := make([]byte, 8+8*events)
+
+		// read format of the group event looks like this:
+		/*
+			     struct read_format {
+				 u64 nr;            // The number of events /
+				 u64 time_enabled;  // if PERF_FORMAT_TOTAL_TIME_ENABLED
+				 u64 time_running;  // if PERF_FORMAT_TOTAL_TIME_RUNNING
+				 struct {
+				     u64 value;     // The value of the event
+				     u64 id;        // if PERF_FORMAT_ID
+				 } values[nr];
+			     };
+		*/
+		if _, err := syscall.Read(fd, buf); err != nil {
+			failBenchmark(options, b, err)
+			continue
+		}
+		offset := 8
+		for i := 0; i < int(events); i++ {
+			val := binary.LittleEndian.Uint64(buf[offset : offset+8])
+			b.ReportMetric(float64(val)/float64(b.N), key+"/op")
+			offset += 8
 		}
 	}
 
 	for _, fd := range attrMap {
-		if err := unix.Close(fd); err != nil {
-			if strict {
-				b.Fatal(err)
-			}
-			b.Log(err)
-		}
+		_ = unix.Close(fd)
 	}
 	for fd := range tidToPid {
-		if err := unix.Close(fd); err != nil {
-			if strict {
-				b.Fatal(err)
-			}
-			b.Log(err)
-		}
+		_ = unix.Close(fd)
 	}
 }
 
