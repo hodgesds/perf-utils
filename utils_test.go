@@ -310,7 +310,7 @@ func BenchmarkRunBenchmarks(b *testing.B) {
 				}
 			}
 		},
-		BenchmarkStrict,
+		BenchStrict,
 		eventAttrs...,
 	)
 }
@@ -330,7 +330,7 @@ func BenchmarkRunBenchmarksLocked(b *testing.B) {
 				}
 			}
 		},
-		BenchmarkLockGoroutine|BenchmarkStrict,
+		BenchLock|BenchStrict,
 		eventAttrs...,
 	)
 }
@@ -351,7 +351,7 @@ func BenchmarkBenchmarkTracepointsLocked(b *testing.B) {
 				}
 			}
 		},
-		BenchmarkLockGoroutine|BenchmarkStrict,
+		BenchLock|BenchStrict,
 		tracepoints...,
 	)
 }
@@ -372,7 +372,7 @@ func BenchmarkBenchmarkTracepoints(b *testing.B) {
 				}
 			}
 		},
-		BenchmarkStrict,
+		BenchStrict,
 		tracepoints...,
 	)
 }

@@ -18,8 +18,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// BenchmarkOption is a benchmark option.
-type BenchmarkOption uint8
+// BenchOpt is a benchmark option.
+type BenchOpt uint8
 
 var (
 	// EventAttrSize is the size of a PerfEventAttr
@@ -27,10 +27,11 @@ var (
 )
 
 const (
-	// BenchmarkLockGoroutine is used to lock a benchmark to a goroutine.
-	BenchmarkLockGoroutine BenchmarkOption = 1 << iota
-	// BenchmarkStrict is used to fail a benchmark if one or more events can be profiled.
-	BenchmarkStrict
+	// BenchLock is used to lock a benchmark to a goroutine.
+	BenchLock BenchOpt = 1 << iota
+	// BenchStrict is used to fail a benchmark if one or more events can be
+	// profiled.
+	BenchStrict
 )
 
 // LockThread locks an goroutine to an OS thread and then sets the affinity of
@@ -46,9 +47,9 @@ func LockThread(core int) (func(), error) {
 // while setting up performance counters, evaluate strict.  If strict mode is
 // on, mark the benchmark as skipped and log err.  If it is off, silently
 // ignore the failure.
-func failBenchmark(options BenchmarkOption, b *testing.B, msg ...interface{}) {
+func failBenchmark(options BenchOpt, b *testing.B, msg ...interface{}) {
 	b.Helper()
-	if options&BenchmarkStrict > 0 {
+	if options&BenchStrict > 0 {
 		b.Skip(msg...)
 	}
 }
@@ -57,11 +58,11 @@ func failBenchmark(options BenchmarkOption, b *testing.B, msg ...interface{}) {
 func BenchmarkTracepoints(
 	b *testing.B,
 	f func(b *testing.B),
-	options BenchmarkOption,
+	options BenchOpt,
 	tracepoints ...string,
 ) {
 	pidOrTid := os.Getpid()
-	if options&BenchmarkLockGoroutine > 0 {
+	if options&BenchLock > 0 {
 		cb, err := LockThread(rand.Intn(runtime.NumCPU()))
 		if err != nil {
 			b.Fatal(err)
@@ -89,7 +90,7 @@ func BenchmarkTracepoints(
 		}
 
 		eventAttr.Bits |= unix.PerfBitDisabled | unix.PerfBitPinned | unix.PerfBitInherit | unix.PerfBitInheritStat | unix.PerfBitEnableOnExec
-		if options&BenchmarkLockGoroutine == 0 {
+		if options&BenchLock == 0 {
 			eventAttr.Sample_type = PERF_SAMPLE_IDENTIFIER
 			eventAttr.Read_format = unix.PERF_FORMAT_GROUP
 		}
@@ -106,7 +107,7 @@ func BenchmarkTracepoints(
 			continue
 		}
 		attrMap[tracepoint] = fd
-		if options&BenchmarkLockGoroutine > 0 {
+		if options&BenchLock > 0 {
 			continue
 		}
 		groupTids[tracepoint] = []int{}
@@ -158,7 +159,7 @@ func BenchmarkTracepoints(
 			failBenchmark(options, b, err)
 			continue
 		}
-		if options&BenchmarkLockGoroutine > 0 {
+		if options&BenchLock > 0 {
 			buf := make([]byte, 24)
 			if _, err := syscall.Read(fd, buf); err != nil {
 				failBenchmark(options, b, err)
@@ -209,11 +210,11 @@ func BenchmarkTracepoints(
 func RunBenchmarks(
 	b *testing.B,
 	f func(b *testing.B),
-	options BenchmarkOption,
+	options BenchOpt,
 	eventAttrs ...unix.PerfEventAttr,
 ) {
 	pidOrTid := os.Getpid()
-	if options&BenchmarkLockGoroutine > 0 {
+	if options&BenchLock > 0 {
 		cb, err := LockThread(rand.Intn(runtime.NumCPU()))
 		if err != nil {
 			b.Fatal(err)
@@ -231,7 +232,7 @@ func RunBenchmarks(
 
 	for _, eventAttr := range eventAttrs {
 		eventAttr.Bits |= unix.PerfBitDisabled | unix.PerfBitPinned | unix.PerfBitInherit | unix.PerfBitInheritStat | unix.PerfBitEnableOnExec
-		if options&BenchmarkLockGoroutine == 0 {
+		if options&BenchLock == 0 {
 			eventAttr.Sample_type = PERF_SAMPLE_IDENTIFIER
 			eventAttr.Read_format = unix.PERF_FORMAT_GROUP
 		}
@@ -249,7 +250,7 @@ func RunBenchmarks(
 		key := EventAttrString(&eventAttr)
 		attrMap[key] = fd
 
-		if options&BenchmarkLockGoroutine > 0 {
+		if options&BenchLock > 0 {
 			continue
 		}
 		groupTids[key] = []int{}
@@ -302,7 +303,7 @@ func RunBenchmarks(
 			failBenchmark(options, b, err)
 			continue
 		}
-		if options&BenchmarkLockGoroutine > 0 {
+		if options&BenchLock > 0 {
 			buf := make([]byte, 24)
 			if _, err := syscall.Read(fd, buf); err != nil {
 				failBenchmark(options, b, err)
