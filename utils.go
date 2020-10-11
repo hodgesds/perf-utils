@@ -418,6 +418,10 @@ func EventAttrString(eventAttr *unix.PerfEventAttr) string {
 			b.WriteString("l1d_read")
 		case (unix.PERF_COUNT_HW_CACHE_L1D) | (unix.PERF_COUNT_HW_CACHE_OP_WRITE << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
 			b.WriteString("l1d_write")
+		case (unix.PERF_COUNT_HW_CACHE_L1I) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
+			b.WriteString("l1i_read")
+		case (unix.PERF_COUNT_HW_CACHE_L1I) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_MISS << 16):
+			b.WriteString("l1i_miss")
 		case (unix.PERF_COUNT_HW_CACHE_LL) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
 			b.WriteString("ll_read")
 		case (unix.PERF_COUNT_HW_CACHE_LL) | (unix.PERF_COUNT_HW_CACHE_OP_WRITE << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
@@ -426,12 +430,18 @@ func EventAttrString(eventAttr *unix.PerfEventAttr) string {
 			b.WriteString("ll_read_miss")
 		case (unix.PERF_COUNT_HW_CACHE_DTLB) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
 			b.WriteString("dtlb_read")
+		case (unix.PERF_COUNT_HW_CACHE_DTLB) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_MISS << 16):
+			b.WriteString("dtlb_miss")
 		case (unix.PERF_COUNT_HW_CACHE_DTLB) | (unix.PERF_COUNT_HW_CACHE_OP_WRITE << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
 			b.WriteString("dtlb_write")
 		case (unix.PERF_COUNT_HW_CACHE_ITLB) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
 			b.WriteString("itlb_read")
+		case (unix.PERF_COUNT_HW_CACHE_ITLB) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_MISS << 16):
+			b.WriteString("itlb_miss")
 		case (unix.PERF_COUNT_HW_CACHE_BPU) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
 			b.WriteString("bpu_read")
+		case (unix.PERF_COUNT_HW_CACHE_BPU) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_MISS << 16):
+			b.WriteString("bpu_miss")
 		case (unix.PERF_COUNT_HW_CACHE_NODE) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
 			b.WriteString("node_read")
 		case (unix.PERF_COUNT_HW_CACHE_NODE) | (unix.PERF_COUNT_HW_CACHE_OP_WRITE << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
