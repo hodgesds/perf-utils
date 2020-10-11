@@ -146,7 +146,7 @@ func BenchmarkRunBenchmarks(b *testing.B) {
 				}
 			}
 		},
-		BenchmarkLockGroutine|BenchmarkStrict,
+		BenchLock|BenchStrict,
 		eventAttrs...,
 	)
 }
@@ -174,7 +174,7 @@ func BenchmarkBenchmarkTracepoints(b *testing.B) {
 				unix.Getrusage(0, &unix.Rusage{})
 			}
 		},
-		BenchmarkLockGroutine|BenchmarkStrict,
+		BenchLock|Benchtrict,
 		tracepoints...,
 	)
 }
