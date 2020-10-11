@@ -53,6 +53,26 @@ func failBenchmark(options BenchOpt, b *testing.B, msg ...interface{}) {
 		b.Skip(msg...)
 	}
 }
+func setupBenchmarkProfiler(fd int) error {
+	if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, unix.PERF_IOC_FLAG_GROUP); err != nil {
+		return err
+	}
+	if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
+		return err
+	}
+	return nil
+}
+
+func readBenchmarkProfiler(fd int) (uint64, error) {
+	if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
+		return 0, err
+	}
+	buf := make([]byte, 24)
+	if _, err := syscall.Read(fd, buf); err != nil {
+		return 0, err
+	}
+	return binary.LittleEndian.Uint64(buf[0:8]), nil
+}
 
 // BenchmarkTracepoints runs benchmark and counts the
 func BenchmarkTracepoints(
@@ -72,12 +92,15 @@ func BenchmarkTracepoints(
 	}
 
 	var (
-		attrMap = map[string]int{}
-		// map of thread profiles to the fd of the process profiler.
-		tidToPid  = map[int]int{}
-		groupTids = map[string][]int{}
+		attrMap  = map[string]int{}
+		tidToPid = map[int]int{}
+		childFds = map[int][]int{}
 	)
 
+	setupCb, err := LockThread(rand.Intn(runtime.NumCPU()))
+	if err != nil {
+		b.Fatal(err)
+	}
 	for _, tracepoint := range tracepoints {
 		split := strings.Split(tracepoint, ":")
 		if len(split) != 2 {
@@ -90,10 +113,6 @@ func BenchmarkTracepoints(
 		}
 
 		eventAttr.Bits |= unix.PerfBitDisabled | unix.PerfBitPinned | unix.PerfBitInherit | unix.PerfBitInheritStat | unix.PerfBitEnableOnExec
-		if options&BenchLock == 0 {
-			eventAttr.Sample_type = PERF_SAMPLE_IDENTIFIER
-			eventAttr.Read_format = unix.PERF_FORMAT_GROUP
-		}
 
 		fd, err := unix.PerfEventOpen(
 			eventAttr,
@@ -110,99 +129,74 @@ func BenchmarkTracepoints(
 		if options&BenchLock > 0 {
 			continue
 		}
-		groupTids[tracepoint] = []int{}
+		childFds[fd] = []int{}
 
 		// Setup a profiler for all the threads in the current
 		// process with the inherit bit set. If the runtime
 		// spins up new threads they should get profiled.
-		childEventAttr := &unix.PerfEventAttr{
-			Type:        eventAttr.Type,
-			Config:      eventAttr.Config,
-			Read_format: unix.PERF_FORMAT_GROUP,
-			Bits:        unix.PerfBitInherit | unix.PerfBitPinned | unix.PerfBitInheritStat | unix.PerfBitEnableOnExec,
-		}
 		tids, err := getTids(pidOrTid)
 		if err != nil {
 			b.Fatal(err)
 		}
 		for _, tid := range tids {
 			tfd, err := unix.PerfEventOpen(
-				childEventAttr,
+				eventAttr,
 				tid,
 				-1,
-				fd, // group leader is the process based profiler
-				unix.PERF_FLAG_FD_NO_GROUP,
+				-1,
+				0,
 			)
 			if err != nil {
 				failBenchmark(options, b, err)
 				continue
 			}
+			childFds[fd] = append(childFds[fd], tfd)
 			tidToPid[tfd] = fd
-			groupTids[tracepoint] = append(groupTids[tracepoint], fd)
 		}
 	}
+	setupCb()
 
 	b.ReportAllocs()
 	b.StartTimer()
 	f(b)
 	b.StopTimer()
 	for key, fd := range attrMap {
-		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, unix.PERF_IOC_FLAG_GROUP); err != nil {
+		if err := setupBenchmarkProfiler(fd); err != nil {
 			failBenchmark(options, b, err)
 			continue
 		}
-		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
-			failBenchmark(options, b, err)
+		if options&BenchLock == 0 {
+			for _, child := range childFds[fd] {
+				if err := setupBenchmarkProfiler(child); err != nil {
+					failBenchmark(options, b, err)
+					continue
+				}
+			}
 		}
 		f(b)
-		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
+		count, err := readBenchmarkProfiler(fd)
+		if err != nil {
 			failBenchmark(options, b, err)
 			continue
 		}
-		if options&BenchLock > 0 {
-			buf := make([]byte, 24)
-			if _, err := syscall.Read(fd, buf); err != nil {
-				failBenchmark(options, b, err)
-				continue
+		if options&BenchLock == 0 {
+			for _, child := range childFds[fd] {
+				childCount, err := readBenchmarkProfiler(child)
+				if err != nil {
+					failBenchmark(options, b, err)
+					continue
+				}
+				count += childCount
 			}
-			b.ReportMetric(float64(binary.LittleEndian.Uint64(buf[0:8]))/float64(b.N), key+"/op")
-			continue
 		}
-
-		// Get the number of children of this group leader.
-		events := len(groupTids[key])
-		buf := make([]byte, 8+8*events)
-
-		// read format of the group event looks like this:
-		/*
-			     struct read_format {
-				 u64 nr;            // The number of events /
-				 u64 time_enabled;  // if PERF_FORMAT_TOTAL_TIME_ENABLED
-				 u64 time_running;  // if PERF_FORMAT_TOTAL_TIME_RUNNING
-				 struct {
-				     u64 value;     // The value of the event
-				     u64 id;        // if PERF_FORMAT_ID
-				 } values[nr];
-			     };
-		*/
-		if _, err := syscall.Read(fd, buf); err != nil {
-			failBenchmark(options, b, err)
-			continue
-		}
-		offset := 8
-		for i := 0; i < int(events); i++ {
-			val := binary.LittleEndian.Uint64(buf[offset : offset+8])
-			b.ReportMetric(float64(val)/float64(b.N), key+"/op")
-			offset += 8
-		}
-
+		b.ReportMetric(float64(count)/float64(b.N), key+"/op")
 	}
 
 	for _, fd := range attrMap {
 		_ = unix.Close(fd)
-	}
-	for fd := range tidToPid {
-		_ = unix.Close(fd)
+		for _, childFd := range childFds[fd] {
+			_ = unix.Close(childFd)
+		}
 	}
 }
 
@@ -224,18 +218,13 @@ func RunBenchmarks(
 	}
 
 	var (
-		// map of thread profiles to the fd of the process profiler.
-		attrMap   = map[string]int{}
-		tidToPid  = map[int]int{}
-		groupTids = map[string][]int{}
+		attrMap  = map[string]int{}
+		tidToPid = map[int]int{}
+		childFds = map[int][]int{}
 	)
 
 	for _, eventAttr := range eventAttrs {
 		eventAttr.Bits |= unix.PerfBitDisabled | unix.PerfBitPinned | unix.PerfBitInherit | unix.PerfBitInheritStat | unix.PerfBitEnableOnExec
-		if options&BenchLock == 0 {
-			eventAttr.Sample_type = PERF_SAMPLE_IDENTIFIER
-			eventAttr.Read_format = unix.PERF_FORMAT_GROUP
-		}
 
 		fd, err := unix.PerfEventOpen(
 			&eventAttr,
@@ -253,98 +242,69 @@ func RunBenchmarks(
 		if options&BenchLock > 0 {
 			continue
 		}
-		groupTids[key] = []int{}
+		childFds[fd] = []int{}
 
 		// Setup a profiler for all the threads in the current
 		// process with the inherit bit set. If the runtime
 		// spins up new threads they should get profiled.
-		childEventAttr := &unix.PerfEventAttr{
-			Type:        eventAttr.Type,
-			Config:      eventAttr.Config,
-			Read_format: unix.PERF_FORMAT_GROUP,
-			Bits:        unix.PerfBitInherit | unix.PerfBitPinned | unix.PerfBitInheritStat | unix.PerfBitEnableOnExec,
-		}
 		tids, err := getTids(pidOrTid)
+		if err != nil {
+			b.Fatal(err)
+		}
+		for _, tid := range tids {
+			tfd, err := unix.PerfEventOpen(
+				&eventAttr,
+				tid,
+				-1,
+				-1,
+				0,
+			)
+			if err != nil {
+				failBenchmark(options, b, err)
+				continue
+			}
+			childFds[fd] = append(childFds[fd], tfd)
+			tidToPid[tfd] = fd
+		}
+	}
+
+	for key, fd := range attrMap {
+		if err := setupBenchmarkProfiler(fd); err != nil {
+			failBenchmark(options, b, err)
+			continue
+		}
+		if options&BenchLock == 0 {
+			for _, child := range childFds[fd] {
+				if err := setupBenchmarkProfiler(child); err != nil {
+					failBenchmark(options, b, err)
+					continue
+				}
+			}
+		}
+		f(b)
+		count, err := readBenchmarkProfiler(fd)
 		if err != nil {
 			failBenchmark(options, b, err)
 			continue
 		}
-		for _, tid := range tids {
-			tfd, err := unix.PerfEventOpen(
-				childEventAttr,
-				tid,
-				-1,
-				fd, // group leader is the process based profiler
-				unix.PERF_FLAG_FD_NO_GROUP,
-			)
-			if err != nil {
-				b.Fatal(err)
+		if options&BenchLock == 0 {
+			for _, child := range childFds[fd] {
+				childCount, err := readBenchmarkProfiler(child)
+				if err != nil {
+					failBenchmark(options, b, err)
+					continue
+				}
+				count += childCount
 			}
-			tidToPid[tfd] = fd
-			groupTids[key] = append(groupTids[key], fd)
 		}
-	}
-
-	b.ReportAllocs()
-	b.StartTimer()
-	f(b)
-	b.StopTimer()
-	for key, fd := range attrMap {
-		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, unix.PERF_IOC_FLAG_GROUP); err != nil {
-			failBenchmark(options, b, err)
-			continue
-		}
-		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
-			failBenchmark(options, b, err)
-			continue
-		}
-		f(b)
-		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_DISABLE, unix.PERF_IOC_FLAG_GROUP); err != nil {
-			failBenchmark(options, b, err)
-			continue
-		}
-		if options&BenchLock > 0 {
-			buf := make([]byte, 24)
-			if _, err := syscall.Read(fd, buf); err != nil {
-				failBenchmark(options, b, err)
-				continue
-			}
-			b.ReportMetric(float64(binary.LittleEndian.Uint64(buf[0:8]))/float64(b.N), key+"/op")
-			continue
-		}
-		// Get the number of children of this group leader.
-		events := len(groupTids[key])
-		buf := make([]byte, 8+8*events)
-
-		// read format of the group event looks like this:
-		/*
-			     struct read_format {
-				 u64 nr;            // The number of events /
-				 u64 time_enabled;  // if PERF_FORMAT_TOTAL_TIME_ENABLED
-				 u64 time_running;  // if PERF_FORMAT_TOTAL_TIME_RUNNING
-				 struct {
-				     u64 value;     // The value of the event
-				     u64 id;        // if PERF_FORMAT_ID
-				 } values[nr];
-			     };
-		*/
-		if _, err := syscall.Read(fd, buf); err != nil {
-			failBenchmark(options, b, err)
-			continue
-		}
-		offset := 8
-		for i := 0; i < int(events); i++ {
-			val := binary.LittleEndian.Uint64(buf[offset : offset+8])
-			b.ReportMetric(float64(val)/float64(b.N), key+"/op")
-			offset += 8
-		}
+		b.ReportMetric(float64(count)/float64(b.N), key+"/op")
 	}
 
 	for _, fd := range attrMap {
 		_ = unix.Close(fd)
-	}
-	for fd := range tidToPid {
-		_ = unix.Close(fd)
+		for _, childFd := range childFds[fd] {
+			_ = unix.Close(childFd)
+		}
 	}
 }
 
