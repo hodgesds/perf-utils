@@ -416,6 +416,8 @@ func EventAttrString(eventAttr *unix.PerfEventAttr) string {
 		switch eventAttr.Config {
 		case (unix.PERF_COUNT_HW_CACHE_L1D) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
 			b.WriteString("l1d_read")
+		case (unix.PERF_COUNT_HW_CACHE_L1D) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_MISS << 16):
+			b.WriteString("l1d_miss")
 		case (unix.PERF_COUNT_HW_CACHE_L1D) | (unix.PERF_COUNT_HW_CACHE_OP_WRITE << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
 			b.WriteString("l1d_write")
 		case (unix.PERF_COUNT_HW_CACHE_L1I) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
