@@ -183,13 +183,14 @@ go test -bench=.
 goos: linux
 goarch: amd64
 pkg: github.com/hodgesds/perf-utils
-BenchmarkProfiler-8                      2014984               584 ns/op              32 B/op          1 allocs/op
-BenchmarkCPUCycles-8                        2332            485937 ns/op              32 B/op          1 allocs/op
-BenchmarkThreadLocking-8                278850051                4.23 ns/op            0 B/op          0 allocs/op
-BenchmarkRunBenchmarks-8                 3104167               403 ns/op              1399 hw_cycles/op             3314 hw_instr/op            0 B/op          0 allocs/op
-BenchmarkBenchmarkTracepoints-8          1346517               915 ns/op                 1.00 syscalls:sys_enter_getrusage/op          0 B/op          0 allocs/op
-PASS
-ok      github.com/hodgesds/perf-utils  138.575s
+BenchmarkProfiler-8                              1983320               596 ns/op              32 B/op          1 allocs/op
+BenchmarkCPUCycles-8                                2335            484068 ns/op              32 B/op          1 allocs/op
+BenchmarkThreadLocking-8                        253319848                4.70 ns/op            0 B/op          0 allocs/op
+BenchmarkRunBenchmarks-8                         1906320               627 ns/op              1023 hw_cycles/op       3007 hw_instr/op
+BenchmarkRunBenchmarksLocked-8                   1903527               632 ns/op              1025 hw_cycles/op       3007 hw_instr/op
+BenchmarkBenchmarkTracepointsLocked-8             986607              1221 ns/op                 2.00 syscalls:sys_enter_getrusage/op          0 B/op          0 allocs/op
+BenchmarkBenchmarkTracepoints-8                   906022              1258 ns/op                 2.00 syscalls:sys_enter_getrusage/op          0 B/op          0 allocs/op
+
 ```
 
 # BPF Support
