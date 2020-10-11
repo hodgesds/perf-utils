@@ -99,7 +99,7 @@ func BenchmarkTracepoints(
 
 	setupCb, err := LockThread(rand.Intn(runtime.NumCPU()))
 	if err != nil {
-		b.Fatal(err)
+		failBenchmark(options, b, err)
 	}
 	for _, tracepoint := range tracepoints {
 		split := strings.Split(tracepoint, ":")
@@ -223,6 +223,10 @@ func RunBenchmarks(
 		childFds = map[int][]int{}
 	)
 
+	setupCb, err := LockThread(rand.Intn(runtime.NumCPU()))
+	if err != nil {
+		failBenchmark(options, b, err)
+	}
 	for _, eventAttr := range eventAttrs {
 		eventAttr.Bits |= unix.PerfBitDisabled | unix.PerfBitPinned | unix.PerfBitInherit | unix.PerfBitInheritStat | unix.PerfBitEnableOnExec
 
@@ -267,7 +271,12 @@ func RunBenchmarks(
 			tidToPid[tfd] = fd
 		}
 	}
+	setupCb()
 
+	b.ReportAllocs()
+	b.StartTimer()
+	f(b)
+	b.StopTimer()
 	for key, fd := range attrMap {
 		if err := setupBenchmarkProfiler(fd); err != nil {
 			failBenchmark(options, b, err)
