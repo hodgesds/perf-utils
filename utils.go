@@ -422,7 +422,7 @@ func EventAttrString(eventAttr *unix.PerfEventAttr) string {
 			b.WriteString("ll_read")
 		case (unix.PERF_COUNT_HW_CACHE_LL) | (unix.PERF_COUNT_HW_CACHE_OP_WRITE << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
 			b.WriteString("ll_write")
-		case (unix.PERF_COUNT_HW_CACHE_LL) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.unix.PERF_COUNT_HW_CACHE_RESULT_MISS << 16):
+		case (unix.PERF_COUNT_HW_CACHE_LL) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_MISS << 16):
 			b.WriteString("ll_read_miss")
 		case (unix.PERF_COUNT_HW_CACHE_DTLB) | (unix.PERF_COUNT_HW_CACHE_OP_READ << 8) | (unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16):
 			b.WriteString("dtlb_read")
