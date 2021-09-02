@@ -26,6 +26,25 @@ func MSRPaths() ([]string, error) {
 	return msrs, err
 }
 
+// MSRs attemps to return all available MSRs.
+func MSRs(onErr func(error)) []*MSR{
+	paths, err := MSRPaths()
+	if err != nil {
+		onErr(err)
+		return nil
+	}
+	msrs := []*MSR{}
+	for _, path := range paths {
+		msr, err := NewMSR(path)
+		if err != nil {
+			onErr(err)
+			continue
+		}
+		msrs = append(msrs, msr)
+	}
+	return msrs
+}
+
 // MSR represents a Model Specific Register
 type MSR struct {
 	f *os.File

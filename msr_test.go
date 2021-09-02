@@ -25,3 +25,9 @@ func TestMSR(t *testing.T) {
 	require.Nil(t, msr.Close())
 
 }
+
+func TestMSRs(t *testing.T) {
+	MSRs(func(err error){
+		require.Nil(t, err)
+	})
+}
