@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package perf
@@ -61,159 +62,179 @@ type cacheProfiler struct {
 }
 
 // NewCacheProfiler returns a new cache profiler.
-func NewCacheProfiler(pid, cpu int, opts ...int) CacheProfiler {
+func NewCacheProfiler(pid, cpu int, opts ...int) (CacheProfiler, error) {
 	profilers := map[int]Profiler{}
 
 	// L1 data
 	op := unix.PERF_COUNT_HW_CACHE_OP_READ
 	result := unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
 	l1dataReadHit, err := NewL1DataProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[L1DataReadHit] = l1dataReadHit
+	if err != nil {
+		return nil, err
 	}
+	profilers[L1DataReadHit] = l1dataReadHit
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
 	l1dataReadMiss, err := NewL1DataProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[L1DataReadMiss] = l1dataReadMiss
+	if err != nil {
+		return nil, err
 	}
+	profilers[L1DataReadMiss] = l1dataReadMiss
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_WRITE
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
 	l1dataWriteHit, err := NewL1DataProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[L1DataWriteHit] = l1dataWriteHit
+	if err != nil {
+		return nil, err
 	}
+	profilers[L1DataWriteHit] = l1dataWriteHit
 
 	// L1 instruction
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
 	l1InstrReadMiss, err := NewL1InstrProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[L1InstrReadMiss] = l1InstrReadMiss
+	if err != nil {
+		return nil, err
 	}
+	profilers[L1InstrReadMiss] = l1InstrReadMiss
 
 	// Last Level
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
 	llReadHit, err := NewLLCacheProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[LLReadHit] = llReadHit
+	if err != nil {
+		return nil, err
 	}
+	profilers[LLReadHit] = llReadHit
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
 	llReadMiss, err := NewLLCacheProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[LLReadMiss] = llReadMiss
+	if err != nil {
+		return nil, err
 	}
+	profilers[LLReadMiss] = llReadMiss
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_WRITE
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
 	llWriteHit, err := NewLLCacheProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[LLWriteHit] = llWriteHit
+	if err != nil {
+		return nil, err
 	}
+	profilers[LLWriteHit] = llWriteHit
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_WRITE
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
 	llWriteMiss, err := NewLLCacheProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[LLWriteMiss] = llWriteMiss
+	if err != nil {
+		return nil, err
 	}
+	profilers[LLWriteMiss] = llWriteMiss
 
 	// dTLB
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
 	dTLBReadHit, err := NewDataTLBProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[DataTLBReadHit] = dTLBReadHit
+	if err != nil {
+		return nil, err
 	}
+	profilers[DataTLBReadHit] = dTLBReadHit
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
 	dTLBReadMiss, err := NewDataTLBProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[DataTLBReadMiss] = dTLBReadMiss
+	if err != nil {
+		return nil, err
 	}
+	profilers[DataTLBReadMiss] = dTLBReadMiss
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_WRITE
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
 	dTLBWriteHit, err := NewDataTLBProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[DataTLBWriteHit] = dTLBWriteHit
+	if err != nil {
+		return nil, err
 	}
+	profilers[DataTLBWriteHit] = dTLBWriteHit
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_WRITE
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
 	dTLBWriteMiss, err := NewDataTLBProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[DataTLBWriteMiss] = dTLBWriteMiss
+	if err != nil {
+		return nil, err
 	}
+	profilers[DataTLBWriteMiss] = dTLBWriteMiss
 
 	// iTLB
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
 	iTLBReadHit, err := NewInstrTLBProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[InstrTLBReadHit] = iTLBReadHit
+	if err != nil {
+		return nil, err
 	}
+	profilers[InstrTLBReadHit] = iTLBReadHit
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
 	iTLBReadMiss, err := NewInstrTLBProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[InstrTLBReadMiss] = iTLBReadMiss
+	if err != nil {
+		return nil, err
 	}
+	profilers[InstrTLBReadMiss] = iTLBReadMiss
 
 	// BPU
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
 	bpuReadHit, err := NewBPUProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[BPUReadHit] = bpuReadHit
+	if err != nil {
+		return nil, err
 	}
+	profilers[BPUReadHit] = bpuReadHit
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
 	bpuReadMiss, err := NewBPUProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[BPUReadMiss] = bpuReadMiss
+	if err != nil {
+		return nil, err
 	}
+	profilers[BPUReadMiss] = bpuReadMiss
 
 	// Node
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
 	nodeReadHit, err := NewNodeCacheProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[NodeCacheReadHit] = nodeReadHit
+	if err != nil {
+		return nil, err
 	}
+	profilers[NodeCacheReadHit] = nodeReadHit
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_READ
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
 	nodeReadMiss, err := NewNodeCacheProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[NodeCacheReadMiss] = nodeReadMiss
+	if err != nil {
+		return nil, err
 	}
+	profilers[NodeCacheReadMiss] = nodeReadMiss
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_WRITE
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_ACCESS
 	nodeWriteHit, err := NewNodeCacheProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[NodeCacheWriteHit] = nodeWriteHit
+	if err != nil {
+		return nil, err
 	}
+	profilers[NodeCacheWriteHit] = nodeWriteHit
 
 	op = unix.PERF_COUNT_HW_CACHE_OP_WRITE
 	result = unix.PERF_COUNT_HW_CACHE_RESULT_MISS
 	nodeWriteMiss, err := NewNodeCacheProfiler(pid, cpu, op, result, opts...)
-	if err == nil {
-		profilers[NodeCacheWriteMiss] = nodeWriteMiss
+	if err != nil {
+		return nil, err
 	}
+	profilers[NodeCacheWriteMiss] = nodeWriteMiss
 
 	return &cacheProfiler{
 		profilers: profilers,
-	}
+	}, nil
 }
 
 // Start is used to start the CacheProfiler, it will return an error if no

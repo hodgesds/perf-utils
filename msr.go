@@ -27,7 +27,7 @@ func MSRPaths() ([]string, error) {
 }
 
 // MSRs attemps to return all available MSRs.
-func MSRs(onErr func(error)) []*MSR{
+func MSRs(onErr func(error)) []*MSR {
 	paths, err := MSRPaths()
 	if err != nil {
 		onErr(err)

@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package perf
@@ -13,57 +14,66 @@ type softwareProfiler struct {
 }
 
 // NewSoftwareProfiler returns a new software profiler.
-func NewSoftwareProfiler(pid, cpu int, opts ...int) SoftwareProfiler {
+func NewSoftwareProfiler(pid, cpu int, opts ...int) (SoftwareProfiler, error) {
 	profilers := map[int]Profiler{}
 
 	cpuClockProfiler, err := NewCPUClockProfiler(pid, cpu, opts...)
-	if err == nil {
-		profilers[unix.PERF_COUNT_SW_CPU_CLOCK] = cpuClockProfiler
+	if err != nil {
+		return nil, err
 	}
+	profilers[unix.PERF_COUNT_SW_CPU_CLOCK] = cpuClockProfiler
 
 	taskClockProfiler, err := NewTaskClockProfiler(pid, cpu, opts...)
-	if err == nil {
-		profilers[unix.PERF_COUNT_SW_TASK_CLOCK] = taskClockProfiler
+	if err != nil {
+		return nil, err
 	}
+	profilers[unix.PERF_COUNT_SW_TASK_CLOCK] = taskClockProfiler
 
 	pageFaultProfiler, err := NewPageFaultProfiler(pid, cpu, opts...)
-	if err == nil {
-		profilers[unix.PERF_COUNT_SW_PAGE_FAULTS] = pageFaultProfiler
+	if err != nil {
+		return nil, err
 	}
+	profilers[unix.PERF_COUNT_SW_PAGE_FAULTS] = pageFaultProfiler
 
 	ctxSwitchesProfiler, err := NewCtxSwitchesProfiler(pid, cpu, opts...)
-	if err == nil {
-		profilers[unix.PERF_COUNT_SW_CONTEXT_SWITCHES] = ctxSwitchesProfiler
+	if err != nil {
+		return nil, err
 	}
+	profilers[unix.PERF_COUNT_SW_CONTEXT_SWITCHES] = ctxSwitchesProfiler
 
 	cpuMigrationsProfiler, err := NewCPUMigrationsProfiler(pid, cpu, opts...)
-	if err == nil {
-		profilers[unix.PERF_COUNT_SW_CPU_MIGRATIONS] = cpuMigrationsProfiler
+	if err != nil {
+		return nil, err
 	}
+	profilers[unix.PERF_COUNT_SW_CPU_MIGRATIONS] = cpuMigrationsProfiler
 
 	minorFaultProfiler, err := NewMinorFaultsProfiler(pid, cpu, opts...)
-	if err == nil {
-		profilers[unix.PERF_COUNT_SW_PAGE_FAULTS_MIN] = minorFaultProfiler
+	if err != nil {
+		return nil, err
 	}
+	profilers[unix.PERF_COUNT_SW_PAGE_FAULTS_MIN] = minorFaultProfiler
 
 	majorFaultProfiler, err := NewMajorFaultsProfiler(pid, cpu, opts...)
-	if err == nil {
-		profilers[unix.PERF_COUNT_SW_PAGE_FAULTS_MAJ] = majorFaultProfiler
+	if err != nil {
+		return nil, err
 	}
+	profilers[unix.PERF_COUNT_SW_PAGE_FAULTS_MAJ] = majorFaultProfiler
 
 	alignFaultsFrontProfiler, err := NewAlignFaultsProfiler(pid, cpu, opts...)
-	if err == nil {
-		profilers[unix.PERF_COUNT_SW_ALIGNMENT_FAULTS] = alignFaultsFrontProfiler
+	if err != nil {
+		return nil, err
 	}
+	profilers[unix.PERF_COUNT_SW_ALIGNMENT_FAULTS] = alignFaultsFrontProfiler
 
 	emuFaultProfiler, err := NewEmulationFaultsProfiler(pid, cpu, opts...)
-	if err == nil {
-		profilers[unix.PERF_COUNT_SW_EMULATION_FAULTS] = emuFaultProfiler
+	if err != nil {
+		return nil, err
 	}
+	profilers[unix.PERF_COUNT_SW_EMULATION_FAULTS] = emuFaultProfiler
 
 	return &softwareProfiler{
 		profilers: profilers,
-	}
+	}, nil
 }
 
 // Start is used to start the SoftwareProfiler.

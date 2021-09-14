@@ -7,7 +7,10 @@ import (
 )
 
 func TestSoftwareProfiler(t *testing.T) {
-	swProfiler := NewSoftwareProfiler(os.Getpid(), -1)
+	swProfiler, err := NewSoftwareProfiler(os.Getpid(), -1)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer func() {
 		if err := swProfiler.Close(); err != nil {
 			t.Fatal(err)

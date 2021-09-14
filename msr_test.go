@@ -27,7 +27,7 @@ func TestMSR(t *testing.T) {
 }
 
 func TestMSRs(t *testing.T) {
-	MSRs(func(err error){
+	MSRs(func(err error) {
 		require.Nil(t, err)
 	})
 }

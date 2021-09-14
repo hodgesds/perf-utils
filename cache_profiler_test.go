@@ -6,7 +6,10 @@ import (
 )
 
 func TestCacheProfiler(t *testing.T) {
-	p := NewCacheProfiler(os.Getpid(), 0)
+	p, err := NewCacheProfiler(os.Getpid(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer func() {
 		if err := p.Close(); err != nil {
 			t.Fatal(err)
@@ -19,7 +22,7 @@ func TestCacheProfiler(t *testing.T) {
 	if err := p.Start(); err != nil {
 		t.Fatal(err)
 	}
-	_, err := p.Profile()
+	_, err = p.Profile()
 	if err != nil {
 		t.Fatal(err)
 	}
