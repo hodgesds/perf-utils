@@ -15,71 +15,82 @@ type hardwareProfiler struct {
 
 // NewHardwareProfiler returns a new hardware profiler.
 func NewHardwareProfiler(pid, cpu int, opts ...int) (HardwareProfiler, error) {
+	var e error
 	profilers := map[int]Profiler{}
 
 	cpuCycleProfiler, err := NewCPUCycleProfiler(pid, cpu, opts...)
 	if err != nil {
-		return nil, err
+		e = multierr.Append(e, err)
+	} else {
+		profilers[unix.PERF_COUNT_HW_CPU_CYCLES] = cpuCycleProfiler
 	}
-	profilers[unix.PERF_COUNT_HW_CPU_CYCLES] = cpuCycleProfiler
 
 	instrProfiler, err := NewInstrProfiler(pid, cpu, opts...)
 	if err != nil {
-		return nil, err
+		e = multierr.Append(e, err)
+	} else {
+		profilers[unix.PERF_COUNT_HW_INSTRUCTIONS] = instrProfiler
 	}
-	profilers[unix.PERF_COUNT_HW_INSTRUCTIONS] = instrProfiler
 
 	cacheRefProfiler, err := NewCacheRefProfiler(pid, cpu, opts...)
 	if err != nil {
-		return nil, err
+		e = multierr.Append(e, err)
+	} else {
+		profilers[unix.PERF_COUNT_HW_CACHE_REFERENCES] = cacheRefProfiler
 	}
-	profilers[unix.PERF_COUNT_HW_CACHE_REFERENCES] = cacheRefProfiler
 
 	cacheMissesProfiler, err := NewCacheMissesProfiler(pid, cpu, opts...)
 	if err != nil {
-		return nil, err
+		e = multierr.Append(e, err)
+	} else {
+		profilers[unix.PERF_COUNT_HW_CACHE_MISSES] = cacheMissesProfiler
 	}
-	profilers[unix.PERF_COUNT_HW_CACHE_MISSES] = cacheMissesProfiler
 
 	branchInstrProfiler, err := NewBranchInstrProfiler(pid, cpu, opts...)
 	if err != nil {
-		return nil, err
+		e = multierr.Append(e, err)
+	} else {
+		profilers[unix.PERF_COUNT_HW_BRANCH_INSTRUCTIONS] = branchInstrProfiler
 	}
-	profilers[unix.PERF_COUNT_HW_BRANCH_INSTRUCTIONS] = branchInstrProfiler
 
 	branchMissesProfiler, err := NewBranchMissesProfiler(pid, cpu, opts...)
 	if err != nil {
-		return nil, err
+		e = multierr.Append(e, err)
+	} else {
+		profilers[unix.PERF_COUNT_HW_BRANCH_MISSES] = branchMissesProfiler
 	}
-	profilers[unix.PERF_COUNT_HW_BRANCH_MISSES] = branchMissesProfiler
 
 	busCyclesProfiler, err := NewBusCyclesProfiler(pid, cpu, opts...)
 	if err != nil {
-		return nil, err
+		e = multierr.Append(e, err)
+	} else {
+		profilers[unix.PERF_COUNT_HW_BUS_CYCLES] = busCyclesProfiler
 	}
-	profilers[unix.PERF_COUNT_HW_BUS_CYCLES] = busCyclesProfiler
 
 	stalledCyclesFrontProfiler, err := NewStalledCyclesFrontProfiler(pid, cpu, opts...)
 	if err != nil {
-		return nil, err
+		e = multierr.Append(e, err)
+	} else {
+		profilers[unix.PERF_COUNT_HW_STALLED_CYCLES_FRONTEND] = stalledCyclesFrontProfiler
 	}
-	profilers[unix.PERF_COUNT_HW_STALLED_CYCLES_FRONTEND] = stalledCyclesFrontProfiler
 
 	stalledCyclesBackProfiler, err := NewStalledCyclesBackProfiler(pid, cpu, opts...)
 	if err != nil {
-		return nil, err
+		e = multierr.Append(e, err)
+	} else {
+		profilers[unix.PERF_COUNT_HW_STALLED_CYCLES_BACKEND] = stalledCyclesBackProfiler
 	}
-	profilers[unix.PERF_COUNT_HW_STALLED_CYCLES_BACKEND] = stalledCyclesBackProfiler
 
 	refCPUCyclesProfiler, err := NewRefCPUCyclesProfiler(pid, cpu, opts...)
 	if err != nil {
-		return nil, err
+		e = multierr.Append(e, err)
+	} else {
+		profilers[unix.PERF_COUNT_HW_REF_CPU_CYCLES] = refCPUCyclesProfiler
 	}
-	profilers[unix.PERF_COUNT_HW_REF_CPU_CYCLES] = refCPUCyclesProfiler
 
 	return &hardwareProfiler{
 		profilers: profilers,
-	}, nil
+	}, e
 }
 
 // Start is used to start the HardwareProfiler.
