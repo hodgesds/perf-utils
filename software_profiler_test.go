@@ -7,7 +7,7 @@ import (
 )
 
 func TestSoftwareProfiler(t *testing.T) {
-	swProfiler, err := NewSoftwareProfiler(os.Getpid(), -1)
+	swProfiler, err := NewSoftwareProfiler(os.Getpid(), -1, AllSoftwareProfilers)
 	if err != nil {
 		t.Fatal(err)
 	}

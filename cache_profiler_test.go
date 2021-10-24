@@ -6,7 +6,7 @@ import (
 )
 
 func TestCacheProfiler(t *testing.T) {
-	p, err := NewCacheProfiler(os.Getpid(), 0)
+	p, err := NewCacheProfiler(os.Getpid(), 0, AllCacheProfilers)
 	if err != nil {
 		t.Fatal(err)
 	}
