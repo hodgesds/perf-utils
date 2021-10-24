@@ -4,6 +4,8 @@
 package perf
 
 import (
+	"fmt"
+
 	"go.uber.org/multierr"
 	"golang.org/x/sys/unix"
 )
