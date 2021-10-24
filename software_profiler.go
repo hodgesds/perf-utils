@@ -4,6 +4,8 @@
 package perf
 
 import (
+	"fmt"
+
 	"go.uber.org/multierr"
 	"golang.org/x/sys/unix"
 )
@@ -20,63 +22,72 @@ func NewSoftwareProfiler(pid, cpu int, opts ...int) (SoftwareProfiler, error) {
 
 	cpuClockProfiler, err := NewCPUClockProfiler(pid, cpu, opts...)
 	if err != nil {
-		e = multierr.Append(e, err)
+		e = multierr.Append(e,
+			fmt.Errorf("Failed to setup CPU clock profiler: pid (%d) cpu (%d) %q", pid, cpu, err))
 	} else {
 		profilers[unix.PERF_COUNT_SW_CPU_CLOCK] = cpuClockProfiler
 	}
 
 	taskClockProfiler, err := NewTaskClockProfiler(pid, cpu, opts...)
 	if err != nil {
-		e = multierr.Append(e, err)
+		e = multierr.Append(e,
+			fmt.Errorf("Failed to setup task clock profiler: pid (%d) cpu (%d) %q", pid, cpu, err))
 	} else {
 		profilers[unix.PERF_COUNT_SW_TASK_CLOCK] = taskClockProfiler
 	}
 
 	pageFaultProfiler, err := NewPageFaultProfiler(pid, cpu, opts...)
 	if err != nil {
-		e = multierr.Append(e, err)
+		e = multierr.Append(e,
+			fmt.Errorf("Failed to setup page fault profiler: pid (%d) cpu (%d) %q", pid, cpu, err))
 	} else {
 		profilers[unix.PERF_COUNT_SW_PAGE_FAULTS] = pageFaultProfiler
 	}
 
 	ctxSwitchesProfiler, err := NewCtxSwitchesProfiler(pid, cpu, opts...)
 	if err != nil {
-		e = multierr.Append(e, err)
+		e = multierr.Append(e,
+			fmt.Errorf("Failed to setup context switch profiler: pid (%d) cpu (%d) %q", pid, cpu, err))
 	} else {
 		profilers[unix.PERF_COUNT_SW_CONTEXT_SWITCHES] = ctxSwitchesProfiler
 	}
 
 	cpuMigrationsProfiler, err := NewCPUMigrationsProfiler(pid, cpu, opts...)
 	if err != nil {
-		e = multierr.Append(e, err)
+		e = multierr.Append(e,
+			fmt.Errorf("Failed to setup cpu migration profiler: pid (%d) cpu (%d) %q", pid, cpu, err))
 	} else {
 		profilers[unix.PERF_COUNT_SW_CPU_MIGRATIONS] = cpuMigrationsProfiler
 	}
 
 	minorFaultProfiler, err := NewMinorFaultsProfiler(pid, cpu, opts...)
 	if err != nil {
-		e = multierr.Append(e, err)
+		e = multierr.Append(e,
+			fmt.Errorf("Failed to setup minor fault profiler: pid (%d) cpu (%d) %q", pid, cpu, err))
 	} else {
 		profilers[unix.PERF_COUNT_SW_PAGE_FAULTS_MIN] = minorFaultProfiler
 	}
 
 	majorFaultProfiler, err := NewMajorFaultsProfiler(pid, cpu, opts...)
 	if err != nil {
-		e = multierr.Append(e, err)
+		e = multierr.Append(e,
+			fmt.Errorf("Failed to setup major fault profiler: pid (%d) cpu (%d) %q", pid, cpu, err))
 	} else {
 		profilers[unix.PERF_COUNT_SW_PAGE_FAULTS_MAJ] = majorFaultProfiler
 	}
 
 	alignFaultsFrontProfiler, err := NewAlignFaultsProfiler(pid, cpu, opts...)
 	if err != nil {
-		e = multierr.Append(e, err)
+		e = multierr.Append(e,
+			fmt.Errorf("Failed to setup alignment fault profiler: pid (%d) cpu (%d) %q", pid, cpu, err))
 	} else {
 		profilers[unix.PERF_COUNT_SW_ALIGNMENT_FAULTS] = alignFaultsFrontProfiler
 	}
 
 	emuFaultProfiler, err := NewEmulationFaultsProfiler(pid, cpu, opts...)
 	if err != nil {
-		e = multierr.Append(e, err)
+		e = multierr.Append(e,
+			fmt.Errorf("Failed to setup emulation fault profiler: pid (%d) cpu (%d) %q", pid, cpu, err))
 	} else {
 		profilers[unix.PERF_COUNT_SW_EMULATION_FAULTS] = emuFaultProfiler
 	}
