@@ -1,12 +1,12 @@
 # Perf
 [![GoDoc](https://godoc.org/github.com/hodgesds/perf-utils?status.svg)](https://godoc.org/github.com/hodgesds/perf-utils)
 
-This package is a go library for interacting with the `perf` subsystem in
+This package is a Go library for interacting with the `perf` subsystem in
 Linux. I had trouble finding a golang perf library so I decided to write this
 by using the linux's perf as a reference. This library allows you to do things
 like see how many CPU instructions a function takes (roughly), profile a
 process for various hardware events, and other interesting things. Note that
-because the go scheduler can schedule a goroutine across many OS threads it
+because the Go scheduler can schedule a goroutine across many OS threads it
 becomes rather difficult to get an _exact_ profile of an individual goroutine.
 However, a few tricks can be used; first a call to
 [`runtime.LockOSThread`](https://golang.org/pkg/runtime/#LockOSThread) to lock
@@ -24,7 +24,7 @@ use perf and some of the limitations.
 If you are looking to interact with the perf subsystem directly with
 `perf_event_open` syscall than this library is most likely for you. A large
 number of the utility methods in this package should only be used for testing
-and/or debugging performance issues. This is due to the nature of the go
+and/or debugging performance issues. This is due to the nature of the Go
 runtime being extremely tricky to profile on the goroutine level, with the
 exception of a long running worker goroutine locked to an OS thread. Eventually
 this library could be used to implement many of the features of `perf` but in
