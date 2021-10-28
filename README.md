@@ -7,7 +7,7 @@ by using the linux's perf as a reference. This library allows you to do things
 like see how many CPU instructions a function takes (roughly), profile a
 process for various hardware events, and other interesting things. Note that
 because the go scheduler can schedule a goroutine across many OS threads it
-becomes rather difficult to get an _exact_ profile of an invididual goroutine.
+becomes rather difficult to get an _exact_ profile of an individual goroutine.
 However, a few tricks can be used; first a call to
 [`runtime.LockOSThread`](https://golang.org/pkg/runtime/#LockOSThread) to lock
 the current goroutine to an OS thread. Second a call to
