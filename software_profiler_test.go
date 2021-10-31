@@ -21,7 +21,8 @@ func TestSoftwareProfiler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	profile, err := swProfiler.Profile()
+	profile := &SoftwareProfile{}
+	err = swProfiler.Profile(profile)
 	if err != nil {
 		t.Fatal(err)
 	}

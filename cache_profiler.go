@@ -397,12 +397,13 @@ func (p *cacheProfiler) Close() error {
 
 // Profile is used to read the CacheProfiler CacheProfile it returns an
 // error only if all profiles fail.
-func (p *cacheProfiler) Profile() (*CacheProfile, error) {
+func (p *cacheProfiler) Profile(cacheProfile *CacheProfile) error {
 	var err error
-	cacheProfile := &CacheProfile{}
+	cacheProfile.Reset()
 	p.profilersMu.RLock()
 	for profilerType, profiler := range p.profilers {
-		profileVal, err2 := profiler.Profile()
+		profileVal := profileValuePool.Get().(*ProfileValue)
+		err2 := profiler.Profile(profileVal)
 		err = multierr.Append(err, err2)
 		if err2 == nil {
 			if cacheProfile.TimeEnabled == nil {
@@ -470,8 +471,8 @@ func (p *cacheProfiler) Profile() (*CacheProfile, error) {
 	}
 	p.profilersMu.RUnlock()
 	if len(multierr.Errors(err)) == len(p.profilers) {
-		return nil, err
+		return err
 	}
 
-	return cacheProfile, nil
+	return nil
 }

@@ -21,7 +21,8 @@ func TestHardwareProfiler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	profile, err := hwProfiler.Profile()
+	profile := &HardwareProfile{}
+	err = hwProfiler.Profile(profile)
 	if err != nil {
 		t.Fatal(err)
 	}

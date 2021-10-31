@@ -199,12 +199,13 @@ func (p *hardwareProfiler) Close() error {
 
 // Profile is used to read the HardwareProfiler HardwareProfile it returns an
 // error only if all profiles fail.
-func (p *hardwareProfiler) Profile() (*HardwareProfile, error) {
+func (p *hardwareProfiler) Profile(hwProfile *HardwareProfile) error {
 	var err error
-	hwProfile := &HardwareProfile{}
+	hwProfile.Reset()
 	p.profilersMu.RLock()
 	for profilerType, profiler := range p.profilers {
-		profileVal, err2 := profiler.Profile()
+		profileVal := profileValuePool.Get().(*ProfileValue)
+		err2 := profiler.Profile(profileVal)
 		err = multierr.Append(err, err2)
 		if err2 == nil {
 			if hwProfile.TimeEnabled == nil {
@@ -238,9 +239,9 @@ func (p *hardwareProfiler) Profile() (*HardwareProfile, error) {
 		}
 	}
 	if len(multierr.Errors(err)) == len(p.profilers) {
-		return nil, err
+		return err
 	}
 	p.profilersMu.RUnlock()
 
-	return hwProfile, nil
+	return nil
 }

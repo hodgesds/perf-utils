@@ -27,7 +27,8 @@ func TestProfiler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = profiler.Profile()
+	profile := &ProfileValue{}
+	err = profiler.Profile(profile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,6 +54,7 @@ func BenchmarkProfiler(b *testing.B) {
 		}
 	}()
 
+	profile := &ProfileValue{}
 	b.ResetTimer()
 	b.ReportAllocs()
 
@@ -60,7 +62,7 @@ func BenchmarkProfiler(b *testing.B) {
 		b.Fatal(err)
 	}
 	for n := 0; n < b.N; n++ {
-		if _, err := profiler.Profile(); err != nil {
+		if err := profiler.Profile(profile); err != nil {
 			b.Fatal(err)
 		}
 	}

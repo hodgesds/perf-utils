@@ -22,7 +22,7 @@ func TestCacheProfiler(t *testing.T) {
 	if err := p.Start(); err != nil {
 		t.Fatal(err)
 	}
-	_, err = p.Profile()
+	err = p.Profile(&CacheProfile{})
 	if err != nil {
 		t.Fatal(err)
 	}

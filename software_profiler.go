@@ -178,12 +178,13 @@ func (p *softwareProfiler) Close() error {
 
 // Profile is used to read the SoftwareProfiler SoftwareProfile it returns an
 // error only if all profiles fail.
-func (p *softwareProfiler) Profile() (*SoftwareProfile, error) {
+func (p *softwareProfiler) Profile(swProfile *SoftwareProfile) error {
 	var err error
-	swProfile := &SoftwareProfile{}
+	swProfile.Reset()
 	p.profilersMu.RLock()
 	for profilerType, profiler := range p.profilers {
-		profileVal, err2 := profiler.Profile()
+		profileVal := profileValuePool.Get().(*ProfileValue)
+		err2 := profiler.Profile(profileVal)
 		err = multierr.Append(err, err2)
 		if err2 == nil {
 			if swProfile.TimeEnabled == nil {
@@ -217,8 +218,8 @@ func (p *softwareProfiler) Profile() (*SoftwareProfile, error) {
 	}
 	p.profilersMu.RUnlock()
 	if len(multierr.Errors(err)) == len(p.profilers) {
-		return nil, err
+		return err
 	}
 
-	return swProfile, nil
+	return nil
 }
