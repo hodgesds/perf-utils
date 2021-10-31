@@ -8,7 +8,7 @@ import (
 
 func TestHardwareProfiler(t *testing.T) {
 	hwProfiler, err := NewHardwareProfiler(os.Getpid(), -1, AllHardwareProfilers)
-	if err != nil {
+	if err != nil && !hwProfiler.HasProfilers() {
 		t.Fatal(err)
 	}
 	defer func() {
