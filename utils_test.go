@@ -8,6 +8,13 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+func TestMaxOpenFiles(t *testing.T) {
+	_, err := MaxOpenFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCPUInstructions(t *testing.T) {
 	_, err := CPUInstructions(
 		func() error { return nil },
