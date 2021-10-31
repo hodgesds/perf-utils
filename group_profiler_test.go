@@ -25,7 +25,7 @@ func TestGroupProfiler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = p.Profile()
+	err = p.Profile(&GroupProfileValue{})
 	if err != nil {
 		t.Fatal(err)
 	}
