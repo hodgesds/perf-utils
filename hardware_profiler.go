@@ -204,7 +204,7 @@ func (p *hardwareProfiler) Profile(hwProfile *HardwareProfile) error {
 	hwProfile.Reset()
 	p.profilersMu.RLock()
 	for profilerType, profiler := range p.profilers {
-		profileVal := profileValuePool.Get().(*ProfileValue)
+		profileVal := ProfileValuePool.Get().(*ProfileValue)
 		err2 := profiler.Profile(profileVal)
 		err = multierr.Append(err, err2)
 		if err2 == nil {
@@ -238,10 +238,6 @@ func (p *hardwareProfiler) Profile(hwProfile *HardwareProfile) error {
 			}
 		}
 	}
-	if len(multierr.Errors(err)) == len(p.profilers) {
-		return err
-	}
 	p.profilersMu.RUnlock()
-
-	return nil
+	return err
 }

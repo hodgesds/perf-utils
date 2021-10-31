@@ -402,7 +402,7 @@ func (p *cacheProfiler) Profile(cacheProfile *CacheProfile) error {
 	cacheProfile.Reset()
 	p.profilersMu.RLock()
 	for profilerType, profiler := range p.profilers {
-		profileVal := profileValuePool.Get().(*ProfileValue)
+		profileVal := ProfileValuePool.Get().(*ProfileValue)
 		err2 := profiler.Profile(profileVal)
 		err = multierr.Append(err, err2)
 		if err2 == nil {
@@ -470,9 +470,5 @@ func (p *cacheProfiler) Profile(cacheProfile *CacheProfile) error {
 		}
 	}
 	p.profilersMu.RUnlock()
-	if len(multierr.Errors(err)) == len(p.profilers) {
-		return err
-	}
-
-	return nil
+	return err
 }

@@ -183,7 +183,7 @@ func (p *softwareProfiler) Profile(swProfile *SoftwareProfile) error {
 	swProfile.Reset()
 	p.profilersMu.RLock()
 	for profilerType, profiler := range p.profilers {
-		profileVal := profileValuePool.Get().(*ProfileValue)
+		profileVal := ProfileValuePool.Get().(*ProfileValue)
 		err2 := profiler.Profile(profileVal)
 		err = multierr.Append(err, err2)
 		if err2 == nil {
@@ -217,9 +217,5 @@ func (p *softwareProfiler) Profile(swProfile *SoftwareProfile) error {
 		}
 	}
 	p.profilersMu.RUnlock()
-	if len(multierr.Errors(err)) == len(p.profilers) {
-		return err
-	}
-
 	return nil
 }
