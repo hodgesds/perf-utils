@@ -4,7 +4,7 @@
 package perf
 
 import (
-	"fmt"
+	"sync"
 
 	"go.uber.org/multierr"
 	"golang.org/x/sys/unix"
@@ -27,7 +27,8 @@ const (
 
 type softwareProfiler struct {
 	// map of perf counter type to file descriptor
-	profilers map[int]Profiler
+	profilers   map[int]Profiler
+	profilersMu sync.RWMutex
 }
 
 // NewSoftwareProfiler returns a new software profiler.
@@ -121,42 +122,57 @@ func NewSoftwareProfiler(pid, cpu int, profilerSet SoftwareProfilerType, opts ..
 	}, e
 }
 
+// HasProfilers returns if there are any configured profilers.
+func (p *softwareProfiler) HasProfilers() bool {
+	p.profilersMu.RLock()
+	defer p.profilersMu.RUnlock()
+	return len(p.profilers) >= 0
+}
+
 // Start is used to start the SoftwareProfiler.
 func (p *softwareProfiler) Start() error {
-	if len(p.profilers) == 0 {
+	if !p.HasProfilers() {
 		return ErrNoProfiler
 	}
 	var err error
+	p.profilersMu.RLock()
 	for _, profiler := range p.profilers {
 		err = multierr.Append(err, profiler.Start())
 	}
+	p.profilersMu.RUnlock()
 	return err
 }
 
 // Reset is used to reset the SoftwareProfiler.
 func (p *softwareProfiler) Reset() error {
 	var err error
+	p.profilersMu.RLock()
 	for _, profiler := range p.profilers {
 		err = multierr.Append(err, profiler.Reset())
 	}
+	p.profilersMu.RUnlock()
 	return err
 }
 
 // Stop is used to reset the SoftwareProfiler.
 func (p *softwareProfiler) Stop() error {
 	var err error
+	p.profilersMu.RLock()
 	for _, profiler := range p.profilers {
 		err = multierr.Append(err, profiler.Stop())
 	}
+	p.profilersMu.RUnlock()
 	return err
 }
 
 // Close is used to reset the SoftwareProfiler.
 func (p *softwareProfiler) Close() error {
 	var err error
+	p.profilersMu.RLock()
 	for _, profiler := range p.profilers {
 		err = multierr.Append(err, profiler.Close())
 	}
+	p.profilersMu.RUnlock()
 	return err
 }
 
@@ -165,6 +181,7 @@ func (p *softwareProfiler) Close() error {
 func (p *softwareProfiler) Profile() (*SoftwareProfile, error) {
 	var err error
 	swProfile := &SoftwareProfile{}
+	p.profilersMu.RLock()
 	for profilerType, profiler := range p.profilers {
 		profileVal, err2 := profiler.Profile()
 		err = multierr.Append(err, err2)
@@ -198,6 +215,7 @@ func (p *softwareProfiler) Profile() (*SoftwareProfile, error) {
 			}
 		}
 	}
+	p.profilersMu.RUnlock()
 	if len(multierr.Errors(err)) == len(p.profilers) {
 		return nil, err
 	}

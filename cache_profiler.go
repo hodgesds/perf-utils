@@ -5,6 +5,7 @@ package perf
 
 import (
 	"fmt"
+	"sync"
 
 	"go.uber.org/multierr"
 	"golang.org/x/sys/unix"
@@ -88,7 +89,8 @@ const (
 
 type cacheProfiler struct {
 	// map of perf counter type to file descriptor
-	profilers map[int]Profiler
+	profilers   map[int]Profiler
+	profilersMu sync.RWMutex
 }
 
 // NewCacheProfiler returns a new cache profiler.
@@ -338,43 +340,58 @@ func NewCacheProfiler(pid, cpu int, profilerSet CacheProfilerType, opts ...int) 
 	}, e
 }
 
+// HasProfilers returns if there are any configured profilers.
+func (p *cacheProfiler) HasProfilers() bool {
+	p.profilersMu.RLock()
+	defer p.profilersMu.RUnlock()
+	return len(p.profilers) >= 0
+}
+
 // Start is used to start the CacheProfiler, it will return an error if no
 // profilers are configured.
 func (p *cacheProfiler) Start() error {
-	if len(p.profilers) == 0 {
+	if !p.HasProfilers() {
 		return ErrNoProfiler
 	}
 	var err error
+	p.profilersMu.RLock()
 	for _, profiler := range p.profilers {
 		err = multierr.Append(err, profiler.Start())
 	}
+	p.profilersMu.RUnlock()
 	return err
 }
 
 // Reset is used to reset the CacheProfiler.
 func (p *cacheProfiler) Reset() error {
 	var err error
+	p.profilersMu.RLock()
 	for _, profiler := range p.profilers {
 		err = multierr.Append(err, profiler.Reset())
 	}
+	p.profilersMu.RUnlock()
 	return err
 }
 
-// Stop is used to reset the CacheProfiler.
+// Stop is used to stop the CacheProfiler.
 func (p *cacheProfiler) Stop() error {
 	var err error
+	p.profilersMu.RLock()
 	for _, profiler := range p.profilers {
 		err = multierr.Append(err, profiler.Stop())
 	}
+	p.profilersMu.RUnlock()
 	return err
 }
 
 // Close is used to reset the CacheProfiler.
 func (p *cacheProfiler) Close() error {
 	var err error
+	p.profilersMu.RLock()
 	for _, profiler := range p.profilers {
 		err = multierr.Append(err, profiler.Close())
 	}
+	p.profilersMu.RUnlock()
 	return err
 }
 
@@ -383,6 +400,7 @@ func (p *cacheProfiler) Close() error {
 func (p *cacheProfiler) Profile() (*CacheProfile, error) {
 	var err error
 	cacheProfile := &CacheProfile{}
+	p.profilersMu.RLock()
 	for profilerType, profiler := range p.profilers {
 		profileVal, err2 := profiler.Profile()
 		err = multierr.Append(err, err2)
@@ -450,6 +468,7 @@ func (p *cacheProfiler) Profile() (*CacheProfile, error) {
 			}
 		}
 	}
+	p.profilersMu.RUnlock()
 	if len(multierr.Errors(err)) == len(p.profilers) {
 		return nil, err
 	}

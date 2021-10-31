@@ -5,6 +5,7 @@ package perf
 
 import (
 	"fmt"
+	"sync"
 
 	"go.uber.org/multierr"
 	"golang.org/x/sys/unix"
@@ -28,7 +29,8 @@ const (
 
 type hardwareProfiler struct {
 	// map of perf counter type to file descriptor
-	profilers map[int]Profiler
+	profilers   map[int]Profiler
+	profilersMu sync.RWMutex
 }
 
 // NewHardwareProfiler returns a new hardware profiler.
@@ -141,42 +143,57 @@ func NewHardwareProfiler(pid, cpu int, profilerSet HardwareProfilerType, opts ..
 	}, e
 }
 
+// HasProfilers returns if there are any configured profilers.
+func (p *hardwareProfiler) HasProfilers() bool {
+	p.profilersMu.RLock()
+	defer p.profilersMu.RUnlock()
+	return len(p.profilers) >= 0
+}
+
 // Start is used to start the HardwareProfiler.
 func (p *hardwareProfiler) Start() error {
-	if len(p.profilers) == 0 {
+	if !p.HasProfilers() {
 		return ErrNoProfiler
 	}
 	var err error
+	p.profilersMu.RLock()
 	for _, profiler := range p.profilers {
 		err = multierr.Append(err, profiler.Start())
 	}
+	p.profilersMu.RUnlock()
 	return err
 }
 
 // Reset is used to reset the HardwareProfiler.
 func (p *hardwareProfiler) Reset() error {
 	var err error
+	p.profilersMu.RLock()
 	for _, profiler := range p.profilers {
 		err = multierr.Append(err, profiler.Reset())
 	}
+	p.profilersMu.RUnlock()
 	return err
 }
 
 // Stop is used to reset the HardwareProfiler.
 func (p *hardwareProfiler) Stop() error {
 	var err error
+	p.profilersMu.RLock()
 	for _, profiler := range p.profilers {
 		err = multierr.Append(err, profiler.Stop())
 	}
+	p.profilersMu.RUnlock()
 	return err
 }
 
 // Close is used to reset the HardwareProfiler.
 func (p *hardwareProfiler) Close() error {
 	var err error
+	p.profilersMu.RLock()
 	for _, profiler := range p.profilers {
 		err = multierr.Append(err, profiler.Close())
 	}
+	p.profilersMu.RUnlock()
 	return err
 }
 
@@ -185,6 +202,7 @@ func (p *hardwareProfiler) Close() error {
 func (p *hardwareProfiler) Profile() (*HardwareProfile, error) {
 	var err error
 	hwProfile := &HardwareProfile{}
+	p.profilersMu.RLock()
 	for profilerType, profiler := range p.profilers {
 		profileVal, err2 := profiler.Profile()
 		err = multierr.Append(err, err2)
@@ -222,6 +240,7 @@ func (p *hardwareProfiler) Profile() (*HardwareProfile, error) {
 	if len(multierr.Errors(err)) == len(p.profilers) {
 		return nil, err
 	}
+	p.profilersMu.RUnlock()
 
 	return hwProfile, nil
 }

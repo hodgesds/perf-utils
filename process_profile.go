@@ -41,6 +41,7 @@ type HardwareProfiler interface {
 	Stop() error
 	Close() error
 	Profile() (*HardwareProfile, error)
+	HasProfilers() bool
 }
 
 // HardwareProfile is returned by a HardwareProfiler. Depending on kernel
@@ -67,6 +68,7 @@ type SoftwareProfiler interface {
 	Stop() error
 	Close() error
 	Profile() (*SoftwareProfile, error)
+	HasProfilers() bool
 }
 
 // SoftwareProfile is returned by a SoftwareProfiler.
@@ -91,6 +93,7 @@ type CacheProfiler interface {
 	Stop() error
 	Close() error
 	Profile() (*CacheProfile, error)
+	HasProfilers() bool
 }
 
 // CacheProfile is returned by a CacheProfiler.
