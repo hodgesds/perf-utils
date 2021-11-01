@@ -62,10 +62,9 @@ func NewMSR(path string) (*MSR, error) {
 }
 
 // Read is used to read a MSR value.
-func (m *MSR) Read(off int64) ([]byte, error) {
-	b := make([]byte, 8)
-	_, err := m.f.ReadAt(b, off)
-	return b, err
+func (m *MSR) Read(off int64, buf []byte) error {
+	_, err := m.f.ReadAt(buf, off)
+	return err
 }
 
 // Close is used to close the MSR.

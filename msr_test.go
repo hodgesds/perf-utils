@@ -19,7 +19,8 @@ func TestMSR(t *testing.T) {
 	require.Nil(t, err)
 
 	// TODO: This may only work on certain architectures :(
-	_, err = msr.Read(0x00)
+	buf := make([]byte, 8)
+	err = msr.Read(0x00, buf)
 	require.Nil(t, err)
 
 	require.Nil(t, msr.Close())
