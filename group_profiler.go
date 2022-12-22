@@ -64,7 +64,7 @@ func NewGroupProfiler(pid, cpu, opts int, eventAttrs ...unix.PerfEventAttr) (Gro
 				opts,
 			)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("Failed to open perf event with PerfEventAttr %+v %q", eventAttr, err)
 			}
 			fds[i] = fd
 			continue
@@ -82,6 +82,7 @@ func NewGroupProfiler(pid, cpu, opts int, eventAttrs ...unix.PerfEventAttr) (Gro
 			opts,
 		)
 		if err != nil {
+			err = fmt.Errorf("Failed to open perf event with PerfEventAtter %+v: %q", eventAttr, err)
 			// cleanup any old Fds
 			for ii, fd2 := range fds {
 				if ii == i {

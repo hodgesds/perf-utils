@@ -227,7 +227,7 @@ func NewProfiler(profilerType uint32, config uint64, pid, cpu int, opts ...int) 
 		eventOps,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to open perf event for PerfEventAttr %+v: %q", eventAttr, err)
 	}
 
 	return &profiler{
