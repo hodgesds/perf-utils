@@ -27,7 +27,7 @@ func MSRPaths() ([]string, error) {
 }
 
 // MSRs attemps to return all available MSRs.
-func MSRs(onErr func(error)) []*MSR {
+func MSRs(flag int, perm os.FileMode, onErr func(error)) []*MSR {
 	paths, err := MSRPaths()
 	if err != nil {
 		onErr(err)
@@ -35,7 +35,7 @@ func MSRs(onErr func(error)) []*MSR {
 	}
 	msrs := []*MSR{}
 	for _, path := range paths {
-		msr, err := NewMSR(path)
+		msr, err := NewMSR(path, flag, perm)
 		if err != nil {
 			onErr(err)
 			continue
@@ -51,8 +51,8 @@ type MSR struct {
 }
 
 // NewMSR returns a MSR.
-func NewMSR(path string) (*MSR, error) {
-	f, err := os.OpenFile(path, os.O_RDWR, 0660)
+func NewMSR(path string, flag int, perm os.FileMode) (*MSR, error) {
+	f, err := os.OpenFile(path, flag, perm)
 	if err != nil {
 		return nil, err
 	}

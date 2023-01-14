@@ -1,6 +1,7 @@
 package perf
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,7 +16,7 @@ func TestMSR(t *testing.T) {
 	msrs, err := MSRPaths()
 	require.Nil(t, err)
 
-	msr, err := NewMSR(msrs[0])
+	msr, err := NewMSR(msrs[0], os.O_RDWR, 0660)
 	require.Nil(t, err)
 
 	// TODO: This may only work on certain architectures :(
@@ -28,7 +29,7 @@ func TestMSR(t *testing.T) {
 }
 
 func TestMSRs(t *testing.T) {
-	MSRs(func(err error) {
+	MSRs(os.O_RDWR, 0660, func(err error) {
 		require.Nil(t, err)
 	})
 }
